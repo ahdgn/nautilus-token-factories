@@ -28,5 +28,17 @@
     "forte": 74,
     "moyenne": 103,
     "positions_icpe": 177
+  },
+  "reseaux_chaleur": {
+    "source": "France Chaleur Urbaine, « Tracés des réseaux de chaleur et de froid » (data.gouv.fr, licence ouverte)",
+    "edition": "2026-09-14",
+    "date": "2026-09-26",
+    "traces": 1033,
+    "donnees": "mix, production, livraisons, points de livraison : enquête SNCU/Fedene 2024 ; taux EnR&R et CO2 : arrêté DPE (2023)",
+    "sur le réseau": 150,
+    "proche": 83,
+    "dans la commune": 125,
+    "aucun": 296,
+    "couche": "213 réseaux (réseaux rattachés), 4.4 Mo"
   }
 }
