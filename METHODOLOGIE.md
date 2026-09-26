@@ -1,4 +1,4 @@
-# Méthodologie — v0.2 (26/09/2026)
+# Méthodologie — v0.3 (26/09/2026)
 
 Ce document explique la logique du screening et les choix de design. Il est mis à jour
 dans la même PR que toute règle modifiée. Les seuils sont dans `tools/screening_params.json`.
@@ -37,7 +37,7 @@ d'inférence de 1 à 10 MW ?
 | `fenetre_sortie` | « 2026-2031 » si `annee_mes` + 12 est dans la fenêtre ; « contrat initial échu (≤ 2025), sortie au plus tard 2031 si rénové » si `annee_mes` + 12 < 2026 ; « hors obligation d'achat (MES ≥ 2020) » au-delà de 2019, le décret 2020-1079 ayant fermé tout nouveau soutien | Moyenne |
 | `cible` | Décision D2 : vrai si `statut` = dormante, ou si `annee_mes` ≤ 2019 (tout contrat d'achat de 12 ans encore en cours s'éteint avant le 01/01/2031, RTE). 612 unités sur 654 : le filtre est large par construction, ce sont les filtres de l'application et le score v1 qui hiérarchisent | Moyenne |
 | `usage_probable` | Mots-clés du nom (industrie, hôpital, réseau de chaleur, serres, campus) ; « À qualifier » sinon | Faible : indicatif |
-| `lat`, `lon` | Centroïde de la commune d'implantation (geo.api.gouv.fr) par code INSEE, sinon par nom et département | Commune |
+| `lat`, `lon` | Centroïde de la commune d'implantation (geo.api.gouv.fr) par code INSEE, sinon par nom et département ; contrôlé contre le contour de la région (§ 7) | Commune |
 
 ## 4. Limites connues
 
@@ -66,3 +66,25 @@ Raccordement (HTA, 3 à 12 MW, poste source urbain, capacité de soutirage relev
 dormance et échéance, site (réseau de chaleur, ICPE, foncier, PLU), acteurs (exploitant
 identifié, hôte public ou privé), marché (métropole, fibre, densité de demande).
 Pondérations à fixer avec l'équipe après la décision D2.
+
+## 7. Contrôle géométrique (étape 3, 26/09/2026)
+
+- **Règle** (`tools/check_geo.py`, reprise du dépôt biométhane) : chaque site est testé contre le
+  contour de la région que le registre lui attribue (`tools/geo/regions.geo.json` : france-geojson,
+  dérivé d'IGN Admin Express, licence ouverte). Point dans une autre région → la géométrie fait foi,
+  `region` est corrigée avec `--apply` et l'ancienne valeur conservée dans `region_registre`. Point
+  hors de France métropolitaine → coordonnées jugées fausses, `lat`/`lon` retirés et `geo_precision`
+  mis à `null` avec `--apply` (le site reste dans le tableau, plus sur la carte). Point à moins de
+  2 km (0,02°) du contour de la région déclarée → bénéfice du doute, inchangé : le centroïde d'une
+  commune littorale ou frontalière peut tomber en mer ou de l'autre côté de la frontière sans que la
+  commune soit fausse. Cette tolérance s'applique aussi au verdict « hors de France », ajout par
+  rapport au patron.
+- **Résultat du 26/09/2026** (`tools/geo_report.json`) : 654 sites testés, 652 conformes, 2 en
+  tolérance frontalière (Perros-Guirec, Bretagne : centroïde à 0,16 km en mer, les Sept-Îles tirent
+  le centre de la commune vers le large ; Wattrelos, Hauts-de-France : centroïde à 0,01 km de la
+  frontière belge), 0 hors région, 0 hors de France, 0 sans coordonnées. Aucune correction appliquée,
+  `data/cogenerations_gaz.json` inchangé, KPI inchangés (cible 612 / 2 466 MW).
+- **Outil de rayon** : distance à vol d'oiseau (haversine, rayon terrestre 6 371 km) entre le centre
+  choisi et le centroïde de commune de chaque site ; rayons proposés et défaut dans
+  `tools/screening_params.json` (`rayons_km`, `rayon_km_defaut`). Le compteur « sites · MW dans le
+  rayon » respecte les autres filtres ; la précision est celle du centroïde de commune, pas du site.

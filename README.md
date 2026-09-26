@@ -32,8 +32,14 @@ inventée : un champ inconnu reste vide.
 
 ## Lancer
 
+Application publique : **https://ahdgn.github.io/nautilus-token-factories/** (GitHub Pages, branche `main`).
+
+En local :
+
 ```bash
 python tools/build_datasets.py      # registre ODRÉ → data/cogenerations_gaz.json + data/meta.json
+python tools/check_geo.py           # contrôle géométrique : rapport dans tools/geo_report.json
+python tools/check_geo.py --apply   # applique les corrections (région, coordonnées hors de France) dans data/
 ```
 
 ```bash
@@ -42,21 +48,30 @@ python -m http.server 8000      # puis http://localhost:8000 : carte, filtres, g
 
 L'application est statique (Leaflet et Chart.js vendorisés, aucun backend, seule dépendance en
 ligne : les fonds de carte Esri). Elle fonctionne telle quelle sur GitHub Pages (chemins relatifs).
-L'état des filtres est dans l'URL (`#c=0&r=Île-de-France|Normandie…`), donc partageable.
+L'état des filtres est dans l'URL (`#c=0&r=Île-de-France|Normandie…&rad=48.8566,2.3522,25`), donc partageable.
 Le filtre « Cible D2 » est coché par défaut (612 sites, 2 466 MW) ; décoché, tout le périmètre
 D1 s'affiche (654 sites, 2 600 MW).
+
+Outil de rayon (étape 3) : bouton « Rayon » (barre latérale ou ⌖ sur la carte) puis clic sur la
+carte, ou lien « Rayon » du popup d'un site ; rayons 5, 10, 25 ou 50 km (défaut `rayon_km_defaut`
+dans `tools/screening_params.json`) ; nombre de sites et MW dans le cercle affichés dans la barre
+latérale ; l'interrupteur « Ne garder que les sites dans le rayon » restreint carte, graphiques et
+tableau. Fond « Satellite » et case « Contours des régions » dans la légende de la carte.
 
 ## Structure
 
 | Chemin | Rôle |
 |---|---|
-| `tools/screening_params.json` | Seuils du screening (puissance, cohortes, facteur de charge, échéance) : la config, jamais le code |
+| `tools/screening_params.json` | Seuils du screening (puissance, cohortes, facteur de charge, échéance) et réglages de l'outil de rayon (`rayons_km`, `rayon_km_defaut`) : la config, jamais le code |
 | `tools/build_datasets.py` | ETL : registre ODRÉ filtré (filière thermique non renouvelable, combustible gaz, hors RTE, 1-20 MW, **sans filtre technologie**), géocodé au centroïde de commune, enrichi (cohorte, facteur de charge, statut, fin de contrat initial, fenêtre de sortie, cible D2, usage probable) |
+| `tools/check_geo.py` | Contrôle géométrique (étape 3) : chaque site testé contre le contour de sa région ; rapport `tools/geo_report.json` ; `--apply` corrige `region` (point dans une autre région) ou retire `lat`/`lon` (point hors de France) ; tolérance de 2 km au contour (communes littorales ou frontalières). Dépendance : `shapely` |
+| `tools/geo/regions.geo.json` | Contours des 13 régions métropolitaines, copiés du dépôt `biomethane-france` : france-geojson (dérivé d'IGN Admin Express), licence ouverte. Servis tels quels à la carte (case « Contours des régions ») |
+| `tools/geo_report.json` | Dernier rapport du contrôle géométrique (testés, conformes, tolérance frontalière, hors région, hors France, sans coordonnées, anomalies) |
 | `data/` | `cogenerations_gaz.json` (un objet par installation), `meta.json` (millésimes) |
 | `index.html` | Application carte (étape 2) : filtres, KPI, carte, graphiques, tableau, fiche du site, note de source |
 | `js/config.js` | Palette Nautilus, couleurs par statut, fenêtres de sortie, tranches de puissance, normalisation du jeu de données, liens ODRÉ / Google Maps, formats fr-FR ; seuils lus dans `tools/screening_params.json` |
-| `js/filters.js` | Filtres (cible D2, statut, fenêtre, cohorte, région, usage, puissance, gestionnaire, nom masqué, recherche), KPI, état synchronisé dans l'URL |
-| `js/map.js` | Carte Leaflet : marqueurs proportionnels à la puissance et colorés par statut, légende cliquable, fond clair / satellite, popup et fiche complète |
+| `js/filters.js` | Filtres (cible D2, statut, fenêtre, cohorte, région, usage, puissance, gestionnaire, nom masqué, recherche), outil de rayon (centre, km, compteur sites / MW, interrupteur « dans le rayon »), KPI, état synchronisé dans l'URL |
+| `js/map.js` | Carte Leaflet : marqueurs proportionnels à la puissance et colorés par statut, légende cliquable, fond clair / satellite, contours des régions, cercle de rayon et mode pointage, popup et fiche complète |
 | `js/charts.js` | Graphiques Chart.js : cohorte × statut, MW par région, unités par tranche et par usage |
 | `js/table.js` | Tableau trié et paginé, clic = zoom + fiche, export CSV du jeu filtré (`;`, UTF-8 avec BOM) |
 | `js/fiche.js` | Panneau « Fiche du site » (lecture seule ; la qualification viendra à l'étape 8) |
