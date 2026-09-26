@@ -37,40 +37,40 @@
   },
   "resultat": {
     "testes": 654,
-    "avec_candidats": 357,
+    "avec_candidats": 356,
     "forte": 74,
-    "moyenne": 104,
-    "sans_appariement": 476,
-    "positions_icpe": 178,
+    "moyenne": 103,
+    "sans_appariement": 477,
+    "positions_icpe": 177,
     "position_non_appliquee_distance": 0,
-    "taux_appariement": 0.272
+    "taux_appariement": 0.271
   },
   "regimes": {
-    "Enregistrement": 58,
+    "Enregistrement": 57,
     "Autorisation": 61,
     "Autres régimes": 50,
     "Non ICPE": 9
   },
   "etats": {
-    "En exploitation avec titre": 112,
+    "En exploitation avec titre": 111,
     "non renseigné": 59,
     "En fin d'exploitation": 7
   },
   "rubriques": {
-    "sans rubrique": 86,
+    "sans rubrique": 85,
     "2910-A.1": 22,
     "3110": 19,
     "2910-A.2": 49,
     "2910-B.1": 2
   },
   "distances_centroide_icpe_km": {
-    "n": 178,
-    "mediane": 1.47,
+    "n": 177,
+    "mediane": 1.46,
     "max": 5.91,
     "repartition": {
       "< 1 km": 53,
       "1-2 km": 62,
-      "2-5 km": 61,
+      "2-5 km": 60,
       "5-10 km": 2,
       "10-20 km": 0,
       "20-50 km": 0,
@@ -1840,26 +1840,6 @@
       "second": null,
       "second_score": null,
       "distance_km": 1.19
-    },
-    {
-      "code_eic": "17W000000497528C",
-      "nom": "COGENERATION CHATEAUCREUX",
-      "commune": "Saint-Étienne",
-      "puissance_mw": 3.356,
-      "usage_probable": "À qualifier",
-      "icpe_raison_sociale": "SARL CARROSSERIE DE CHATEAUCREUX",
-      "icpe_siret": "45074225900028",
-      "icpe_regime": "Enregistrement",
-      "rubrique": null,
-      "score": 0.857,
-      "composantes": {
-        "nom": 1.0,
-        "nature": 0.5
-      },
-      "candidats": 1,
-      "second": null,
-      "second_score": null,
-      "distance_km": 3.58
     },
     {
       "code_eic": "17W000000395563R",

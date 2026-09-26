@@ -273,7 +273,15 @@
         "85",
         "93"
       ]
-    }
+    },
+    "exclusions": [
+      {
+        "code_eic": "17W000000497528C",
+        "siret": "45074225900028",
+        "motif": "Nom de quartier partagé : « COGENERATION CHATEAUCREUX » n'est pas la carrosserie du même nom (contrôle manuel du 26/09/2026)"
+      }
+    ],
+    "_exclusions_comment": "Paires (code EIC, SIRET) écartées à la main après contrôle ; appliquées dans tools/geocode_icpe.py, fonction candidates()."
   },
   "decisions": {
     "D1": "Enedis et ELD, 1-20 MW (26/09/2026)",

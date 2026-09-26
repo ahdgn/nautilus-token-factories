@@ -369,9 +369,12 @@ def regime_rank(e):
 def candidates(site, etabs):
     """Établissements de combustion de la commune, plus ceux sans rubrique dont le nom concorde."""
     out = []
+    excl = {(x.get("code_eic"), x.get("siret")) for x in P.get("exclusions", [])}
     for e in etabs:
         if e.get("lat") is None or e.get("lon") is None:
             continue
+        if (site.get("code_eic"), e.get("siret")) in excl:
+            continue  # paire écartée à la main (tools/screening_params.json, icpe.exclusions)
         if e.get("rubriques_combustion"):
             out.append(e)
         elif not site.get("nom_confidentiel") and \
