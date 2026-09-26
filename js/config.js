@@ -81,6 +81,7 @@ const CONFIG = (() => {
     rayons_km: [5, 10, 25, 50],
     cible: { fenetre_min: 2026, fenetre_max: 2031, annee_mes_max_oa: 2019 },
     statut: { dormante_max: 0.05, faible_max: 0.15 },
+    reseaux_chaleur: { sur_reseau_m: 300, proche_m: 1000 },   // étape 5 (seuils de classe)
     version: '',
   };
   function setParams(p) {
@@ -96,6 +97,10 @@ const CONFIG = (() => {
       if (p.statut.dormante_max != null) PARAMS.statut.dormante_max = p.statut.dormante_max;
       if (p.statut.faible_max != null) PARAMS.statut.faible_max = p.statut.faible_max;
       if (p.statut.labels) STATUTS.forEach(s => { if (p.statut.labels[s.key]) s.label = p.statut.labels[s.key]; });
+    }
+    if (p.reseaux_chaleur) {
+      if (p.reseaux_chaleur.sur_reseau_m != null) PARAMS.reseaux_chaleur.sur_reseau_m = Number(p.reseaux_chaleur.sur_reseau_m);
+      if (p.reseaux_chaleur.proche_m != null) PARAMS.reseaux_chaleur.proche_m = Number(p.reseaux_chaleur.proche_m);
     }
     if (p.version) PARAMS.version = p.version;
   }
@@ -141,6 +146,42 @@ const CONFIG = (() => {
   const CONFIANCE_BY_KEY = Object.fromEntries(CONFIANCES.map(c => [c.key, c]));
   const confianceInfo = (key) => CONFIANCE_BY_KEY[String(key || '').toLowerCase()] || CONFIANCE_BY_KEY.aucune;
 
+  /* ---- Réseaux de chaleur (étape 5, France Chaleur Urbaine) ----
+     Classe de rattachement calculée par tools/enrich_heat.py : distance en
+     mètres du point du site au tracé le plus proche (Lambert-93), seuils dans
+     screening_params.json (reseaux_chaleur). Clés stables pour le filtre et l'URL. */
+  const RC_CLASSES = [
+    { key: 'sur', short: 'sur le réseau', cls: 'chip-green', match: (v) => v.startsWith('sur') },
+    { key: 'proche', short: 'proche', cls: 'chip-amber', match: (v) => v.startsWith('proche') },
+    { key: 'commune', short: 'dans la commune', cls: 'chip-grey', match: (v) => v.startsWith('dans') },
+    { key: 'aucun', short: 'aucun', cls: 'chip-grey', match: (v) => v.startsWith('aucun') },
+  ];
+  const RC_BY_KEY = Object.fromEntries(RC_CLASSES.map(c => [c.key, c]));
+  function rcKey(value) {
+    const v = String(value || '').toLowerCase();
+    const c = RC_CLASSES.find(x => x.match(v));
+    return c ? c.key : 'aucun';
+  }
+  const fmtDist = (m) => (m == null ? '—' : (m < 1000 ? `${fmtInt(m)} m` : `${fmtNum(m / 1000, m < 10000 ? 1 : 0)} km`));
+  function rcLabel(key) {
+    const s = PARAMS.reseaux_chaleur.sur_reseau_m, p = PARAMS.reseaux_chaleur.proche_m;
+    switch (key) {
+      case 'sur': return `Sur le réseau (≤ ${fmtDist(s)})`;
+      case 'proche': return `Proche (${fmtDist(s)} à ${fmtDist(p)})`;
+      case 'commune': return `Dans la commune (> ${fmtDist(p)})`;
+      default: return 'Aucun réseau';
+    }
+  }
+  const rcInfo = (key) => RC_BY_KEY[key] || RC_BY_KEY.aucun;
+  // Mix énergétique du réseau (% de la production, enquête SNCU) : ordre et couleurs d'affichage
+  const RC_MIX = [
+    { key: 'gaz', label: 'Gaz naturel', color: PALETTE.steel },
+    { key: 'biomasse', label: 'Biomasse', color: PALETTE.sage },
+    { key: 'geothermie', label: 'Géothermie', color: PALETTE.terracotta },
+    { key: 'uve', label: 'UVE (déchets)', color: PALETTE.violet },
+    { key: 'autres', label: 'Autres', color: PALETTE.lightBlue },
+  ];
+
   /* ---- Normalisation d'un enregistrement de data/cogenerations_gaz.json ----
      Les champs du jeu de données sont conservés tels quels ; on ajoute
      l'identifiant, les clés de filtre et le facteur de charge en %. */
@@ -168,6 +209,13 @@ const CONFIG = (() => {
     r.icpe_alinea = rub ? rub.alinea || null : null;
     r.icpe_rubrique_regime = rub ? rub.regime || null : null;
     r.icpe_puissance_th_mw = rub && rub.puissance_th_mw != null ? Number(rub.puissance_th_mw) : null;
+    // étape 5 : réseau de chaleur le plus proche (France Chaleur Urbaine)
+    r.rcKey = rcKey(d.rc_classe);
+    r.rc_rattache = r.rcKey !== 'aucun';                      // sur, proche ou dans la commune
+    r.rc_sur_ou_proche = r.rcKey === 'sur' || r.rcKey === 'proche';
+    r.rc_gestionnaire = d.rc_gestionnaire || '';
+    r.rc_distance_m = d.rc_distance_m != null ? Number(d.rc_distance_m) : null;
+    r.rc_mix = d.rc_mix && typeof d.rc_mix === 'object' ? d.rc_mix : null;
     return r;
   }
 
@@ -204,6 +252,7 @@ const CONFIG = (() => {
   return { PALETTE, STATUTS, statutKey, statutColor, statutLabel,
            FENETRES, fenetreKey, fenetreLabel, fenetreShort,
            PRECISIONS, precisionKey, precisionLabel, precisionShort, CONFIANCES, confianceInfo,
+           RC_CLASSES, RC_MIX, rcKey, rcLabel, rcInfo, fmtDist,
            PARAMS, setParams, tranches, trancheKey, normalize,
            odreUrl, gmapsUrl, annuaireUrl, SOURCE_NOTE,
            fmtInt, fmtNum, fmtPct, fmtDate, escapeHtml, csvNum };

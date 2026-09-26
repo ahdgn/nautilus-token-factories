@@ -10,7 +10,7 @@
   <!-- Librairies vendorisées (pas de CDN, pas de fonte externe) -->
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
-  <link rel="stylesheet" href="css/style.css?v=20260926-4">
+  <link rel="stylesheet" href="css/style.css?v=20260926-5">
 </head>
 <body>
 
@@ -91,7 +91,7 @@
       <div class="filter-group">
         <label class="filter-label" for="filter-search">Recherche</label>
         <div class="search-box">
-          <input type="search" id="filter-search" placeholder="Nom, commune ou poste source…" autocomplete="off">
+          <input type="search" id="filter-search" placeholder="Nom, commune, poste source, réseau…" autocomplete="off">
         </div>
       </div>
 
@@ -176,9 +176,30 @@
         <span class="filter-hint">« Site ICPE » : position de l'établissement apparié dans la base des installations classées (Géorisques, rubrique 2910), marqueur cerclé ; sinon centroïde de la commune.</span>
       </div>
 
+      <!-- Réseau de chaleur (étape 5 : France Chaleur Urbaine) -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-rc">Réseau de chaleur</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="rc">tout</button>·<button class="link-btn" data-none="rc">aucun</button>
+          </span>
+        </div>
+        <div id="filter-rc" class="checkbox-group" role="group" aria-labelledby="label-rc"></div>
+        <span class="filter-hint">Distance du site (position ICPE ou centroïde de commune) au tracé le plus proche (France Chaleur Urbaine, data.gouv.fr) ; « dans la commune » : un réseau y est recensé, plus loin que 1 km.</span>
+      </div>
+
+      <!-- Gestionnaire de réseau de chaleur -->
+      <div class="filter-group">
+        <label class="filter-label" for="filter-rc-gestionnaire">Gestionnaire du réseau de chaleur</label>
+        <select id="filter-rc-gestionnaire">
+          <option value="">Tous les gestionnaires</option>
+        </select>
+        <span class="filter-hint">Sites sur, proches ou dans la commune d'un réseau, par gestionnaire déclaré à France Chaleur Urbaine.</span>
+      </div>
+
       <!-- Gestionnaire -->
       <div class="filter-group">
-        <label class="filter-label" for="filter-gestionnaire">Gestionnaire de réseau</label>
+        <label class="filter-label" for="filter-gestionnaire">Gestionnaire de réseau électrique</label>
         <select id="filter-gestionnaire">
           <option value="">Tous les gestionnaires</option>
         </select>
@@ -200,7 +221,7 @@
     <main class="main-content">
 
       <!-- Bandeau KPI -->
-      <section class="kpi-strip kpi-strip-6" id="kpi-strip" aria-label="Indicateurs clés"></section>
+      <section class="kpi-strip kpi-strip-7" id="kpi-strip" aria-label="Indicateurs clés"></section>
 
       <!-- Carte -->
       <div class="map-container">
@@ -297,6 +318,7 @@
                   <th scope="col" data-sort="poste_source">Poste source</th>
                   <th scope="col" data-sort="gestionnaire">Gestionnaire</th>
                   <th scope="col" data-sort="icpe_raison_sociale" title="Établissement ICPE apparié (Géorisques, rubrique 2910) : ● confiance forte, ◐ moyenne">ICPE (Géorisques)</th>
+                  <th scope="col" data-sort="rc_distance_m" title="Réseau de chaleur le plus proche (France Chaleur Urbaine) : classe, nom et distance au tracé ; tri par distance">Réseau de chaleur</th>
                 </tr>
               </thead>
               <tbody id="table-body"></tbody>
@@ -319,7 +341,7 @@
       <button class="icon-btn" id="fiche-close" aria-label="Fermer la fiche du site">✕</button>
     </div>
     <div class="qualify-site fiche-body" id="fiche-body"></div>
-    <p class="qualify-hint">Position au centroïde de la commune (geo.api.gouv.fr), ou sur l'établissement ICPE apparié (Géorisques, rubrique 2910) quand la section « Installation classée » est renseignée. Données du registre ODRÉ et de Géorisques, aucun champ inventé.</p>
+    <p class="qualify-hint">Position au centroïde de la commune (geo.api.gouv.fr), ou sur l'établissement ICPE apparié (Géorisques, rubrique 2910) quand la section « Installation classée » est renseignée. Réseau de chaleur : tracés et enquête SNCU publiés par France Chaleur Urbaine (data.gouv.fr). Données du registre ODRÉ, de Géorisques et de France Chaleur Urbaine, aucun champ inventé.</p>
   </aside>
 
   <!-- FOOTER -->
@@ -334,12 +356,12 @@
   <script src="vendor/chartjs/chart.umd.min.js"></script>
 
   <!-- App -->
-  <script src="js/config.js?v=20260926-4"></script>
-  <script src="js/filters.js?v=20260926-4"></script>
-  <script src="js/map.js?v=20260926-4"></script>
-  <script src="js/charts.js?v=20260926-4"></script>
-  <script src="js/table.js?v=20260926-4"></script>
-  <script src="js/fiche.js?v=20260926-4"></script>
-  <script src="js/app.js?v=20260926-4"></script>
+  <script src="js/config.js?v=20260926-5"></script>
+  <script src="js/filters.js?v=20260926-5"></script>
+  <script src="js/map.js?v=20260926-5"></script>
+  <script src="js/charts.js?v=20260926-5"></script>
+  <script src="js/table.js?v=20260926-5"></script>
+  <script src="js/fiche.js?v=20260926-5"></script>
+  <script src="js/app.js?v=20260926-5"></script>
 </body>
 </html>

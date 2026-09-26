@@ -1,6 +1,6 @@
 {
   "_comment": "Seuils du screening Nautilus Token Factories. Lus par tools/build_datasets.py. Toute modification est documentée dans METHODOLOGIE.md.",
-  "version": "v0.3 (26/09/2026)",
+  "version": "v0.5 (26/09/2026)",
   "source": {
     "api": "https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/",
     "dataset": "registre-national-installation-production-stockage-electricite-agrege",
@@ -282,6 +282,33 @@
       }
     ],
     "_exclusions_comment": "Paires (code EIC, SIRET) écartées à la main après contrôle ; appliquées dans tools/geocode_icpe.py, fonction candidates()."
+  },
+  "reseaux_chaleur": {
+    "_comment": "Étape 5 : rattachement de chaque cogénération au réseau de chaleur le plus proche (France Chaleur Urbaine, « Tracés des réseaux de chaleur et de froid », data.gouv.fr, licence ouverte). Lu par tools/enrich_heat.py ; règle dans METHODOLOGIE.md § 9. Distance en mètres du point du site (position ICPE ou centroïde de commune) au tracé, calculée en Lambert-93 (EPSG:2154, projection métrique native du jeu). Classes : « sur le réseau » si distance ≤ sur_reseau_m ; « proche » si ≤ proche_m ; « dans la commune » au-delà quand un réseau (tracé ou sans tracé) liste la commune du site ; « aucun » sinon.",
+    "dataset_api": "https://www.data.gouv.fr/api/1/datasets/traces-des-reseaux-de-chaleur-et-de-froid/",
+    "dataset_page": "https://www.data.gouv.fr/datasets/traces-des-reseaux-de-chaleur-et-de-froid",
+    "zip_membre_traces": "reseaux_de_chaleur.geojson",
+    "zip_membre_sans_traces": "reseaux_de_chaleur_sans_traces.geojson",
+    "zip_membre_pdp": "pdp.geojson",
+    "fiche_url": "https://france-chaleur-urbaine.beta.gouv.fr/reseaux/{id}",
+    "sur_reseau_m": 300,
+    "proche_m": 1000,
+    "dans_commune_distance_max_km": 30,
+    "_dans_commune_comment": "Un réseau « dans la commune » est reconnu par le nom de commune (champ `communes` du jeu, sans code INSEE) ; pour écarter un homonyme d'un autre département, son tracé doit rester sous dans_commune_distance_max_km du site.",
+    "couche_carte": {
+      "_comment": "Couche « Tracés des réseaux » de la carte : data/reseaux_chaleur.geojson, WGS84, tracés fusionnés (linemerge) puis simplifiés (Douglas-Peucker, tolerance_m), coordonnées arrondies (decimales). Si le fichier complet dépasse taille_max_mo, seuls les réseaux rattachés à au moins un site (classe ≠ aucun) sont conservés.",
+      "tolerance_m": 25,
+      "decimales": 5,
+      "taille_max_mo": 5
+    },
+    "mix": {
+      "_comment": "Parts du mix en % de production_totale_MWh (enquête SNCU 2024 via France Chaleur Urbaine). gaz = gaz naturel ; biomasse = biomasse solide + biogaz ; geothermie = géothermie ; uve = UIOM (unité de valorisation énergétique) ; autres = charbon, fioul, GPL, déchets internes, PAC, solaire, chaleur industrielle et récupérée, chaudières électriques, autres. Vide si la production totale est absente ou nulle.",
+      "gaz": ["prod_MWh_gaz_naturel"],
+      "biomasse": ["prod_MWh_biomasse_solide", "prod_MWh_biogaz"],
+      "geothermie": ["prod_MWh_geothermie"],
+      "uve": ["prod_MWh_UIOM"],
+      "autres": ["prod_MWh_charbon", "prod_MWh_fioul_domestique", "prod_MWh_fioul_lourd", "prod_MWh_GPL", "prod_MWh_dechets_internes", "prod_MWh_PAC", "prod_MWh_solaire_thermique", "prod_MWh_autres_ENR", "prod_MWh_chaleur_industiel", "prod_MWh_autre_chaleur_recuperee", "prod_MWh_chaudieres_electriques", "prod_MWh_autres"]
+    }
   },
   "decisions": {
     "D1": "Enedis et ELD, 1-20 MW (26/09/2026)",
