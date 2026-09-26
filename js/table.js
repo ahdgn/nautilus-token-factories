@@ -13,6 +13,7 @@ const DataTable = (() => {
   let currentPage = 1;
   let pageSize = 25;
   const NUMERIC_DESC = ['puissance_mw', 'facteur_charge_pct', 'annee_mes', 'fin_contrat_initial'];
+  const NUMERIC = ['puissance_mw', 'facteur_charge_pct', 'annee_mes', 'fin_contrat_initial', 'rc_distance_m'];
 
   function init() {
     bindEvents();
@@ -91,6 +92,7 @@ const DataTable = (() => {
         <td>${escapeHtml(d.poste_source || '—')}</td>
         <td title="${escapeHtml(d.gestionnaire || '')}">${escapeHtml(d.gestionnaire || '—')}</td>
         <td title="${d.icpe_apparie ? escapeHtml(`${d.icpe_raison_sociale || ''} · ${d.icpe_regime || ''} · confiance ${d.icpe_confiance}`) : 'Aucun appariement Géorisques (position au centroïde de la commune)'}">${d.icpe_apparie ? `<span class="chip ${CONFIG.confianceInfo(d.icpe_confiance).cls}" style="margin-right:4px">${d.icpe_confiance === 'forte' ? '●' : '◐'}</span>${escapeHtml(d.icpe_raison_sociale || '—')}` : '—'}</td>
+        <td title="${escapeHtml(rcTitle(d))}">${d.rc_rattache ? `<span class="chip ${CONFIG.rcInfo(d.rcKey).cls}" style="margin-right:4px">${escapeHtml(CONFIG.rcInfo(d.rcKey).short)}</span>${escapeHtml(d.rc_nom || '—')}${d.rc_distance_m != null ? ` <span class="kpi-sub">${CONFIG.fmtDist(d.rc_distance_m)}</span>` : ''}` : (d.rc_distance_m != null ? `<span class="kpi-sub">— (${CONFIG.fmtDist(d.rc_distance_m)})</span>` : '—')}</td>
       `;
 
       tr.addEventListener('click', () => {
@@ -106,8 +108,18 @@ const DataTable = (() => {
     renderPagination(totalPages);
   }
 
+  // Info-bulle de la colonne « Réseau de chaleur » (étape 5)
+  function rcTitle(d) {
+    if (d.rc_rattache) {
+      return `${CONFIG.rcLabel(d.rcKey)} · ${d.rc_nom || ''}${d.rc_gestionnaire ? ` · ${d.rc_gestionnaire}` : ''}${d.rc_taux_enrr != null ? ` · EnR&R ${fmtPct(d.rc_taux_enrr, 0)}` : ''}`;
+    }
+    return d.rc_distance_m != null
+      ? `Aucun réseau à moins de ${CONFIG.fmtDist(CONFIG.PARAMS.reseaux_chaleur.proche_m)} ni dans la commune ; tracé le plus proche (${d.rc_nom || '?'}) à ${CONFIG.fmtDist(d.rc_distance_m)}`
+      : 'Site sans position';
+  }
+
   function sortData(data) {
-    const numeric = ['puissance_mw', 'facteur_charge_pct', 'annee_mes', 'fin_contrat_initial'];
+    const numeric = NUMERIC;
     return [...data].sort((a, b) => {
       let va = a[sortKey];
       let vb = b[sortKey];
@@ -185,10 +197,21 @@ const DataTable = (() => {
       'ICPE confiance', 'ICPE raison sociale', 'ICPE SIRET', 'ICPE adresse', 'ICPE régime', 'ICPE rubrique',
       'ICPE alinéa', 'ICPE régime rubrique', 'ICPE puissance thermique (MW)', 'ICPE état', 'ICPE Seveso',
       'ICPE code AIOT', 'ICPE candidats commune', 'ICPE score', 'ICPE distance centroïde (km)',
-      'Lien registre ODRÉ', 'Lien Google Maps', 'Lien fiche Géorisques', 'Lien annuaire des entreprises'];
+      // étape 5 : réseau de chaleur le plus proche (France Chaleur Urbaine)
+      'Réseau chaleur classe', 'Réseau chaleur distance (m)', 'Réseau chaleur id SNCU', 'Réseau chaleur nom',
+      'Réseau chaleur gestionnaire', 'Réseau chaleur maître d\'ouvrage', 'Réseau chaleur tracé', 'Réseau chaleur dans la commune',
+      'Réseau chaleur PDP', 'Réseau chaleur taux EnR&R (%)', 'Réseau chaleur CO2 (kgCO2/kWh)',
+      'Réseau chaleur mix gaz (%)', 'Réseau chaleur mix biomasse (%)', 'Réseau chaleur mix géothermie (%)',
+      'Réseau chaleur mix UVE (%)', 'Réseau chaleur mix autres (%)', 'Réseau chaleur production (MWh)',
+      'Réseau chaleur livraisons (MWh)', 'Réseau chaleur points de livraison', 'Réseau chaleur année de création',
+      'Réseau chaleur classé',
+      'Lien registre ODRÉ', 'Lien Google Maps', 'Lien fiche Géorisques', 'Lien annuaire des entreprises',
+      'Lien fiche France Chaleur Urbaine'];
 
     const rows = sortData(currentData).map(d => {
       const rub = d.icpe_rubrique_2910 || {};
+      const mix = d.rc_mix || {};
+      const oui = (v) => (v == null ? '' : (v ? 'oui' : 'non'));
       return [
       d.code_eic || '', d.nom || '', d.nom_confidentiel ? 'oui' : 'non', d.commune || '', d.code_insee || '',
       d.departement || '', d.code_departement || '', d.region || '',
@@ -203,8 +226,15 @@ const DataTable = (() => {
       d.icpe_confiance || 'aucune', d.icpe_raison_sociale || '', d.icpe_siret || '', d.icpe_adresse || '', d.icpe_regime || '',
       rub.numero || '', rub.alinea || '', rub.regime || '', csvNum(rub.puissance_th_mw), d.icpe_etat || '', d.icpe_seveso || '',
       d.icpe_code_aiot || '', d.icpe_candidats != null ? d.icpe_candidats : '', csvNum(d.icpe_score), csvNum(d.icpe_distance_km),
+      d.rc_classe || '', csvNum(d.rc_distance_m), d.rc_id || '', d.rc_nom || '',
+      d.rc_gestionnaire || '', d.rc_mo || '', oui(d.rc_trace), oui(d.rc_dans_commune),
+      oui(d.rc_pdp), csvNum(d.rc_taux_enrr), csvNum(d.rc_co2),
+      csvNum(mix.gaz), csvNum(mix.biomasse), csvNum(mix.geothermie), csvNum(mix.uve), csvNum(mix.autres),
+      csvNum(d.rc_production_mwh), csvNum(d.rc_mwh_livres), d.rc_nb_pdl != null ? d.rc_nb_pdl : '',
+      d.rc_annee_creation != null ? d.rc_annee_creation : '', oui(d.rc_reseau_classe),
       d.code_eic ? CONFIG.odreUrl(d.code_eic) : '', CONFIG.gmapsUrl(d.lat, d.lon) || '',
       d.icpe_url || '', CONFIG.annuaireUrl(d.icpe_siret) || '',
+      d.rc_url || '',
       ];
     });
 

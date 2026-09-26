@@ -26,6 +26,10 @@ const MapView = (() => {
   let regionsLayer = null;   // contours des régions (chargés à la demande)
   let regionsOn = false;
   const REGIONS_URL = 'tools/geo/regions.geo.json';
+  let heatLayer = null;      // tracés des réseaux de chaleur (étape 5, chargés à la demande)
+  let heatOn = false;
+  let heatCount = null;      // nombre de réseaux dans la couche (affiché dans la légende)
+  const HEAT_URL = 'data/reseaux_chaleur.geojson';
 
   function init() {
     map = L.map('map', {
@@ -207,6 +211,34 @@ const MapView = (() => {
       .catch(err => { console.warn('Contours des régions indisponibles', err); regionsOn = false; updateLegend(lastData); });
   }
 
+  /* ---- Tracés des réseaux de chaleur (France Chaleur Urbaine) : trait terracotta,
+     chargé au premier affichage ; data/reseaux_chaleur.geojson ne contient que les
+     réseaux rattachés à au moins un site (la couche complète dépasserait 5 Mo) ---- */
+  function setHeat(on) {
+    heatOn = !!on;
+    if (!heatOn) { if (heatLayer) map.removeLayer(heatLayer); return; }
+    if (heatLayer) { heatLayer.addTo(map); return; }
+    fetch(HEAT_URL).then(r => { if (!r.ok) throw new Error(`${HEAT_URL} : HTTP ${r.status}`); return r.json(); })
+      .then(gj => {
+        heatLayer = L.geoJSON(gj, {
+          style: { color: PALETTE.terracotta, weight: 2.5, opacity: 0.85 },
+          onEachFeature: (feature, layer) => {
+            const p = feature.properties || {};
+            const parts = [`<strong>${escapeHtml(p.nom || 'Réseau de chaleur')}</strong>`];
+            if (p.gestionnaire) parts.push(escapeHtml(p.gestionnaire));
+            if (p.taux_enrr != null) parts.push(`EnR&R ${fmtPct(p.taux_enrr, 0)}`);
+            if (p.id) parts.push(`SNCU ${escapeHtml(p.id)}`);
+            layer.bindTooltip(parts.join('<br>'), { sticky: true, className: 'heat-tooltip' });
+            if (p.url) layer.on('click', () => window.open(p.url, '_blank', 'noopener'));
+          },
+        });
+        heatCount = (gj.features || []).length;
+        if (heatOn) heatLayer.addTo(map);
+        updateLegend(lastData);
+      })
+      .catch(err => { console.warn('Tracés des réseaux de chaleur indisponibles', err); heatOn = false; updateLegend(lastData); });
+  }
+
   /* Rayon proportionnel à la racine de la puissance : 1 MW → 5 px, 20 MW → 13 px */
   function radiusFor(mw) {
     if (!mw || mw <= 0) return 5;
@@ -246,6 +278,18 @@ const MapView = (() => {
     const c = CONFIG.confianceInfo(key);
     return `<span class="chip ${c.cls}">${escapeHtml(c.label)}</span>`;
   }
+  // Pastille de classe « réseau de chaleur » (étape 5)
+  function rcChip(d) {
+    const c = CONFIG.rcInfo(d.rcKey);
+    return `<span class="chip ${c.cls}" title="${escapeHtml(CONFIG.rcLabel(d.rcKey))}">${escapeHtml(c.short)}</span>`;
+  }
+  // Résumé d'une ligne : chip + nom du réseau + distance ; pour « aucun », le plus proche à titre indicatif
+  function rcSummary(d) {
+    if (d.rc_rattache) {
+      return `${rcChip(d)} ${escapeHtml(d.rc_nom || '—')}${d.rc_distance_m != null ? ` <span class="kpi-sub">à ${CONFIG.fmtDist(d.rc_distance_m)}</span>` : (d.rc_trace === false ? ' <span class="kpi-sub">(réseau sans tracé)</span>' : '')}`;
+    }
+    return `${rcChip(d)}${d.rc_distance_m != null ? ` <span class="kpi-sub">plus proche à ${CONFIG.fmtDist(d.rc_distance_m)}</span>` : ''}`;
+  }
   const mapsTitle = (d) => (d.precisionKey === 'icpe' ? 'Google Maps sur le site (position ICPE)' : 'Google Maps au centroïde de la commune (pas le site)');
   function actionBar(d) {
     const a = [];
@@ -276,6 +320,7 @@ const MapView = (() => {
     } else {
       rows.push(['Position', precisionChip(d)]);
     }
+    rows.push(['Réseau de chaleur', rcSummary(d)]);
     return `
       ${titleHtml(d)}
       <dl class="popup-grid popup-grid-left">
@@ -341,11 +386,13 @@ const MapView = (() => {
     if (d.icpe_url) liens.push(`<a class="popup-link" href="${escapeHtml(d.icpe_url)}" target="_blank" rel="noopener noreferrer" title="Fiche de l'établissement dans la base des installations classées">Fiche Géorisques ↗</a>`);
     const an = CONFIG.annuaireUrl(d.icpe_siret);
     if (an) liens.push(`<a class="popup-link" href="${an}" target="_blank" rel="noopener noreferrer" title="Annuaire des entreprises (data.gouv), établissement par SIRET">Annuaire des entreprises ↗</a>`);
+    if (d.rc_rattache && d.rc_url) liens.push(`<a class="popup-link" href="${escapeHtml(d.rc_url)}" target="_blank" rel="noopener noreferrer" title="Fiche du réseau sur France Chaleur Urbaine">Fiche France Chaleur Urbaine ↗</a>`);
     return `
       ${titleHtml(d)}
       <div class="fiche-links">${liens.join('')}</div>
       ${section('Identité', identite)}
       ${icpeSection(d)}
+      ${rcSection(d)}
       ${section('Raccordement', raccordement)}
       ${section('Contrat', contrat)}
       ${section('Activité', activite)}
@@ -387,6 +434,52 @@ const MapView = (() => {
       ['Fiche Géorisques', d.icpe_url ? `<a class="popup-link" href="${escapeHtml(d.icpe_url)}" target="_blank" rel="noopener noreferrer">${e(d.icpe_code_aiot || 'fiche')} ↗</a>` : '—'],
     ];
     return `<details class="fiche-sec fiche-sec-icpe" open><summary>Installation classée</summary>
+      <dl class="popup-grid popup-grid-left">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v == null || v === '' ? '—' : v}</dd>`).join('')}</dl></details>`;
+  }
+
+  /* ---- Section « Réseau de chaleur » (étape 5, France Chaleur Urbaine) ----
+     Réseau le plus proche : nom, gestionnaire, distance, taux EnR&R, mix, MWh,
+     lien vers la fiche. Pour « aucun », seule la distance au tracé le plus proche
+     est donnée, à titre indicatif ; un champ absent de la source reste vide. */
+  function mixBar(mix) {
+    if (!mix) return '—';
+    const parts = CONFIG.RC_MIX.filter(m => mix[m.key] != null && mix[m.key] > 0);
+    if (!parts.length) return '—';
+    const bar = parts.map(m => `<span style="width:${Math.max(0, Math.min(100, mix[m.key]))}%;background:${m.color}" title="${escapeHtml(m.label)} ${fmtPct(mix[m.key], 1)}"></span>`).join('');
+    const txt = parts.map(m => `<span class="mix-item"><span class="type-dot" style="background:${m.color}"></span>${escapeHtml(m.label)} ${fmtPct(mix[m.key], 0)}</span>`).join(' ');
+    return `<div class="mix-bar" aria-hidden="true">${bar}</div><div class="mix-legend">${txt}</div>`;
+  }
+  function rcSection(d) {
+    const e = (v) => (v == null || v === '' ? '—' : escapeHtml(String(v)));
+    const pos = d.precisionKey === 'icpe' ? 'position ICPE' : 'centroïde de la commune';
+    if (!d.rc_rattache) {
+      const txt = d.rc_distance_m != null
+        ? `Aucun réseau de chaleur à moins de ${CONFIG.fmtDist(CONFIG.PARAMS.reseaux_chaleur.proche_m)} du site (${pos}) ni dans sa commune. Tracé le plus proche : ${e(d.rc_nom)}${d.rc_gestionnaire ? ` (${e(d.rc_gestionnaire)})` : ''} à ${CONFIG.fmtDist(d.rc_distance_m)}.`
+        : 'Site sans position : rattachement impossible.';
+      return `<details class="fiche-sec fiche-sec-rc" open><summary>Réseau de chaleur</summary>
+        <p class="icpe-empty">${rcChip(d)} ${txt}</p></details>`;
+    }
+    const rows = [
+      ['Classe', `${rcChip(d)} <span class="kpi-sub">${escapeHtml(CONFIG.rcLabel(d.rcKey))}</span>`],
+      ['Réseau', `${e(d.rc_nom)}${d.rc_id ? ` <span class="chip chip-grey" title="Identifiant national du réseau (SNCU)">${e(d.rc_id)}</span>` : ' <span class="chip chip-grey" title="Tracé sans identifiant national : pas de données d\'enquête (mix, livraisons)">sans identifiant SNCU</span>'}`],
+      ['Gestionnaire', e(d.rc_gestionnaire)],
+      ['Maître d\'ouvrage', e(d.rc_mo)],
+      ['Distance au tracé', d.rc_distance_m != null
+        ? `${CONFIG.fmtDist(d.rc_distance_m)} <span class="info-ico" title="Distance en Lambert-93 entre le point du site (${escapeHtml(pos)}) et le tracé le plus proche du réseau">ⓘ</span> <span class="kpi-sub">depuis ${escapeHtml(pos)}</span>`
+        : (d.rc_trace === false ? 'réseau sans tracé publié (recensé dans la commune)' : '—')],
+      ['Dans la commune', d.rc_dans_commune ? 'oui' : 'non'],
+      ['Périmètre de développement prioritaire', d.rc_pdp ? '<span class="chip chip-green">oui</span>' : 'non <span class="info-ico" title="Point du site hors des périmètres de développement prioritaire publiés (collecte partielle)">ⓘ</span>'],
+      ['Taux EnR&R', d.rc_taux_enrr != null ? `${fmtPct(d.rc_taux_enrr, 1)} <span class="info-ico" title="Arrêté DPE (données 2023 ou moyenne 2021-2023)">ⓘ</span>` : '—'],
+      ['Contenu CO2', d.rc_co2 != null ? `${fmtNum(d.rc_co2, 3)} kgCO₂/kWh` : '—'],
+      ['Mix énergétique', mixBar(d.rc_mix)],
+      ['Production', d.rc_production_mwh != null ? `${fmtInt(d.rc_production_mwh)} MWh` : '—'],
+      ['Chaleur livrée', d.rc_mwh_livres != null ? `${fmtInt(d.rc_mwh_livres)} MWh <span class="info-ico" title="Enquête SNCU / Fedene, année 2024">ⓘ</span>` : '—'],
+      ['Points de livraison', d.rc_nb_pdl != null ? fmtInt(d.rc_nb_pdl) : '—'],
+      ['Année de création', d.rc_annee_creation != null ? String(d.rc_annee_creation) : '—'],
+      ['Réseau classé', d.rc_reseau_classe == null ? '—' : (d.rc_reseau_classe ? 'oui' : 'non')],
+      ['Fiche France Chaleur Urbaine', d.rc_url ? `<a class="popup-link" href="${escapeHtml(d.rc_url)}" target="_blank" rel="noopener noreferrer">${e(d.rc_id)} ↗</a>` : '—'],
+    ];
+    return `<details class="fiche-sec fiche-sec-rc" open><summary>Réseau de chaleur</summary>
       <dl class="popup-grid popup-grid-left">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v == null || v === '' ? '—' : v}</dd>`).join('')}</dl></details>`;
   }
 
@@ -473,6 +566,7 @@ const MapView = (() => {
       <div class="legend-note">Taille du point ∝ puissance (MW) · <span class="legend-swatch icpe"></span> site ICPE (Géorisques) · <span class="legend-swatch"></span> centroïde de commune</div>
       <label class="legend-toggle"><input type="checkbox" id="legend-cluster" ${clustered ? 'checked' : ''}> Regrouper les marqueurs</label>
       <label class="legend-toggle"><input type="checkbox" id="legend-regions" ${regionsOn ? 'checked' : ''}> Contours des régions</label>
+      <label class="legend-toggle" title="Tracés des réseaux rattachés à au moins un site (France Chaleur Urbaine, data.gouv.fr) ; survol : nom et gestionnaire, clic : fiche du réseau"><input type="checkbox" id="legend-heat" ${heatOn ? 'checked' : ''}> <span class="legend-swatch rc"></span> Tracés des réseaux de chaleur${heatCount != null ? ` <span class="type-count">${fmtInt(heatCount)}</span>` : ''}</label>
       </div>`;
 
     legendDiv.querySelector('.map-legend-toggle').addEventListener('click', () => {
@@ -482,6 +576,7 @@ const MapView = (() => {
     });
     legendDiv.querySelector('#legend-cluster').addEventListener('change', (e) => setClustered(e.target.checked));
     legendDiv.querySelector('#legend-regions').addEventListener('change', (e) => setRegions(e.target.checked));
+    legendDiv.querySelector('#legend-heat').addEventListener('change', (e) => setHeat(e.target.checked));
 
     legendDiv.querySelectorAll('.legend-item').forEach(el => {
       const toggle = () => Filters.toggleValue('statut', el.dataset.statut);
@@ -497,5 +592,5 @@ const MapView = (() => {
   }
 
   return { init, update, focusOn, invalidateSize, fitFrance, popupHtml, detailHtml, setClustered,
-           showRadius, hideRadius, fitRadius, setPickMode, isPicking, setRegions };
+           showRadius, hideRadius, fitRadius, setPickMode, isPicking, setRegions, setHeat };
 })();

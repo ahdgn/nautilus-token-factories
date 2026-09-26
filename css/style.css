@@ -1240,3 +1240,23 @@ body.qualify-open .bottom-panel { display: none; }
 .leaflet-container.map-picking { cursor: crosshair; }
 .leaflet-container.map-picking .leaflet-marker-icon { cursor: crosshair; }
 .leaflet-bar a.map-pick-btn.active { background: var(--teal); color: #fff; }
+
+/* ============ ÉTAPE 5 : Réseaux de chaleur ============ */
+/* Sept indicateurs : le septième compte les sites sur ou proches d'un réseau de chaleur */
+.kpi-strip-7 { grid-template-columns: repeat(7, 1fr); }
+@media (max-width: 1280px) {
+  .kpi-strip-7 { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 860px) {
+  .kpi-strip-7 { grid-template-columns: repeat(2, 1fr); }
+}
+/* Tracé de réseau dans la légende et info-bulle des tracés */
+.legend-swatch.rc { width: 14px; height: 3px; border-radius: 2px; background: var(--terracotta, #D9844A); border: none; vertical-align: 2px; }
+.heat-tooltip { font-size: 12px; line-height: 1.35; }
+.fiche-sec.fiche-sec-rc summary::after { content: ' · France Chaleur Urbaine'; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
+/* Mix énergétique du réseau : barre empilée + légende */
+.mix-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: rgba(127,127,127,0.12); margin: 3px 0 4px; }
+.mix-bar span { display: block; height: 100%; }
+.mix-legend { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11px; color: var(--muted); }
+.mix-item { white-space: nowrap; }
+.mix-item .type-dot { width: 8px; height: 8px; }

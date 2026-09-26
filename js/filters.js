@@ -18,12 +18,15 @@ const Filters = (() => {
                label: (k) => { const t = CONFIG.tranches().find(x => x.key === k); return t ? t.label : 'Hors tranches'; } },
     // étape 4 : précision de la position (site ICPE Géorisques ou centroïde de commune)
     precision: { id: 'filter-precision', url: 'gp', value: (d) => d.precisionKey, label: CONFIG.precisionLabel },
+    // étape 5 : classe de rattachement à un réseau de chaleur (France Chaleur Urbaine)
+    rc: { id: 'filter-rc', url: 'rc', value: (d) => d.rcKey, label: CONFIG.rcLabel },
   };
 
   const state = {
     cible: true,        // cible D2 (cochée par défaut)
     search: '',
     gestionnaire: '',
+    rcGestionnaire: '', // gestionnaire du réseau de chaleur rattaché (étape 5)
     masque: '',         // '' | 'nommes' | 'confidentiels'
     sel: {},            // groupe -> Set des valeurs retenues
     radius: null,       // null | { lat, lon, km, label } : outil de rayon (étape 3)
@@ -60,6 +63,7 @@ const Filters = (() => {
       else if (g === 'cohorte') keys = PARAMS.cohortes.map(c => c.label).filter(k => counts[k] != null).concat(keys.filter(k => !PARAMS.cohortes.some(c => c.label === k)));
       else if (g === 'tranche') keys = CONFIG.tranches().map(t => t.key).filter(k => counts[k] != null).concat(keys.filter(k => !CONFIG.tranches().some(t => t.key === k)));
       else if (g === 'precision') keys = CONFIG.PRECISIONS.map(p => p.key).filter(k => counts[k] != null).concat(keys.filter(k => !CONFIG.PRECISIONS.some(p => p.key === k)));
+      else if (g === 'rc') keys = CONFIG.RC_CLASSES.map(c => c.key).filter(k => counts[k] != null).concat(keys.filter(k => !CONFIG.RC_CLASSES.some(c => c.key === k)));
       else if (g === 'region') keys.sort((a, b) => a.localeCompare(b, 'fr'));
       else keys.sort((a, b) => counts[b] - counts[a]);
       options[g] = keys.map(k => ({ key: k, count: counts[k] }));
@@ -89,6 +93,14 @@ const Filters = (() => {
     Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'fr'))
       .forEach(gest => select.appendChild(new Option(`${gest} (${fmtInt(counts[gest])})`, gest)));
 
+    // Gestionnaires de réseau de chaleur (étape 5) : sites rattachés seulement
+    // (sur le réseau, proche ou dans la commune), effectif décroissant
+    const rcCounts = {};
+    allData.forEach(d => { if (d.rc_rattache && d.rc_gestionnaire) rcCounts[d.rc_gestionnaire] = (rcCounts[d.rc_gestionnaire] || 0) + 1; });
+    const rcSelect = document.getElementById('filter-rc-gestionnaire');
+    Object.keys(rcCounts).sort((a, b) => rcCounts[b] - rcCounts[a] || a.localeCompare(b, 'fr'))
+      .forEach(g => rcSelect.appendChild(new Option(`${g} (${fmtInt(rcCounts[g])})`, g)));
+
     // Rayons proposés (tools/screening_params.json : rayons_km, rayon_km_defaut)
     document.getElementById('radius-km').innerHTML = PARAMS.rayons_km.map(km =>
       `<button class="seg-btn" data-km="${km}" aria-pressed="false">${fmtInt(km)} km</button>`).join('');
@@ -103,6 +115,7 @@ const Filters = (() => {
     if (p.get('c') === '0') state.cible = false;
     if (p.has('q')) state.search = p.get('q').trim().toLowerCase();
     if (p.has('g')) state.gestionnaire = p.get('g');
+    if (p.has('rg')) state.rcGestionnaire = p.get('rg');
     if (p.has('n') && ['nommes', 'confidentiels'].includes(p.get('n'))) state.masque = p.get('n');
     if (p.has('rad')) {
       const [la, lo, km] = p.get('rad').split(',').map(Number);
@@ -123,6 +136,7 @@ const Filters = (() => {
     if (!state.cible) p.set('c', '0');
     if (state.search) p.set('q', state.search);
     if (state.gestionnaire) p.set('g', state.gestionnaire);
+    if (state.rcGestionnaire) p.set('rg', state.rcGestionnaire);
     if (state.masque) p.set('n', state.masque);
     if (state.radius) {
       p.set('rad', `${state.radius.lat},${state.radius.lon},${state.radius.km}`);
@@ -182,6 +196,12 @@ const Filters = (() => {
     // Gestionnaire
     document.getElementById('filter-gestionnaire').addEventListener('change', (e) => {
       state.gestionnaire = e.target.value;
+      applyFilters();
+    });
+
+    // Gestionnaire de réseau de chaleur (étape 5)
+    document.getElementById('filter-rc-gestionnaire').addEventListener('change', (e) => {
+      state.rcGestionnaire = e.target.value;
       applyFilters();
     });
 
@@ -260,6 +280,7 @@ const Filters = (() => {
     document.getElementById('filter-cible').checked = state.cible;
     document.getElementById('filter-search').value = state.search;
     document.getElementById('filter-gestionnaire').value = state.gestionnaire;
+    document.getElementById('filter-rc-gestionnaire').value = state.rcGestionnaire;
     syncSegmented('filter-masque', 'masque', state.masque);
     Object.keys(GROUPS).forEach(syncGroup);
     syncRadiusKm();
@@ -270,6 +291,7 @@ const Filters = (() => {
     if (!state.cible) n++;  // l'état par défaut est « cible cochée »
     if (state.search) n++;
     if (state.gestionnaire) n++;
+    if (state.rcGestionnaire) n++;
     if (state.masque) n++;
     if (state.radius && state.radiusFilter) n++;
     Object.keys(GROUPS).forEach(g => { if (state.sel[g].size !== options[g].length) n++; });
@@ -284,12 +306,15 @@ const Filters = (() => {
       if (state.masque === 'nommes' && d.nom_confidentiel) return false;
       if (state.masque === 'confidentiels' && !d.nom_confidentiel) return false;
       if (state.gestionnaire && d.gestionnaire !== state.gestionnaire) return false;
+      // gestionnaire de réseau de chaleur : seulement les sites rattachés à un réseau
+      if (state.rcGestionnaire && !(d.rc_rattache && d.rc_gestionnaire === state.rcGestionnaire)) return false;
       if (state.search) {
         const hit = (d.nom || '').toLowerCase().includes(state.search)
           || (d.commune || '').toLowerCase().includes(state.search)
           || (d.poste_source || '').toLowerCase().includes(state.search)
           || (d.icpe_raison_sociale || '').toLowerCase().includes(state.search)
-          || (d.icpe_siret || '').includes(state.search);
+          || (d.icpe_siret || '').includes(state.search)
+          || (d.rc_rattache && (d.rc_nom || '').toLowerCase().includes(state.search));
         if (!hit) return false;
       }
       for (const [g, cfg] of Object.entries(GROUPS)) {
@@ -334,6 +359,9 @@ const Filters = (() => {
     // étape 4 : sites positionnés sur leur établissement ICPE (appariement fort ou moyen)
     const icpe = f.filter(d => d.precisionKey === 'icpe');
     const icpeForte = icpe.filter(d => d.icpe_confiance === 'forte').length;
+    // étape 5 : sites sur un réseau de chaleur ou proches (≤ proche_m du tracé)
+    const rc = f.filter(d => d.rc_sur_ou_proche);
+    const rcSur = rc.filter(d => d.rcKey === 'sur').length;
 
     const cards = [];
     cards.push(kpi('Sites', `${fmtInt(f.length)} <span class="kpi-sub">/ ${fmtInt(allData.length)}</span>`));
@@ -343,6 +371,8 @@ const Filters = (() => {
     cards.push(kpi('Nommés / confidentiels', `${fmtInt(nommes)} <span class="kpi-sub">/ ${fmtInt(conf)}</span>`));
     cards.push(kpi('Positions ICPE', `${fmtInt(icpe.length)} <span class="kpi-sub">· ${fmtInt(icpeForte)} fortes · ${fmtInt(sumMw(icpe))} MW</span>`,
       false, 'Sites positionnés sur leur établissement ICPE (Géorisques, rubrique 2910) : appariement de confiance forte ou moyenne'));
+    cards.push(kpi('Sur / proche d\'un réseau', `${fmtInt(rc.length)} <span class="kpi-sub">· ${fmtInt(rcSur)} sur · ${fmtInt(sumMw(rc))} MW</span>`,
+      false, `Sites à moins de ${CONFIG.fmtDist(PARAMS.reseaux_chaleur.proche_m)} d'un tracé de réseau de chaleur (France Chaleur Urbaine), dont « sur le réseau » (≤ ${CONFIG.fmtDist(PARAMS.reseaux_chaleur.sur_reseau_m)}) ; distance depuis la position ICPE ou le centroïde de la commune`));
 
     strip.innerHTML = cards.join('');
   }
@@ -360,6 +390,7 @@ const Filters = (() => {
     state.cible = true;
     state.search = '';
     state.gestionnaire = '';
+    state.rcGestionnaire = '';
     state.masque = '';
     state.radius = null;
     state.radiusFilter = true;
