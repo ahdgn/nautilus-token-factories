@@ -10,7 +10,7 @@
   <!-- Librairies vendorisées (pas de CDN, pas de fonte externe) -->
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
-  <link rel="stylesheet" href="css/style.css?v=20260926-2">
+  <link rel="stylesheet" href="css/style.css?v=20260926-4">
 </head>
 <body>
 
@@ -164,6 +164,18 @@
         <div id="filter-tranche" class="checkbox-group" role="group" aria-labelledby="label-tranche"></div>
       </div>
 
+      <!-- Précision de position (étape 4 : Géorisques) -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-precision">Précision de position</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="precision">tout</button>·<button class="link-btn" data-none="precision">aucun</button>
+          </span>
+        </div>
+        <div id="filter-precision" class="checkbox-group" role="group" aria-labelledby="label-precision"></div>
+        <span class="filter-hint">« Site ICPE » : position de l'établissement apparié dans la base des installations classées (Géorisques, rubrique 2910), marqueur cerclé ; sinon centroïde de la commune.</span>
+      </div>
+
       <!-- Gestionnaire -->
       <div class="filter-group">
         <label class="filter-label" for="filter-gestionnaire">Gestionnaire de réseau</label>
@@ -188,7 +200,7 @@
     <main class="main-content">
 
       <!-- Bandeau KPI -->
-      <section class="kpi-strip kpi-strip-5" id="kpi-strip" aria-label="Indicateurs clés"></section>
+      <section class="kpi-strip kpi-strip-6" id="kpi-strip" aria-label="Indicateurs clés"></section>
 
       <!-- Carte -->
       <div class="map-container">
@@ -284,6 +296,7 @@
                   <th scope="col" data-sort="usage_probable">Usage</th>
                   <th scope="col" data-sort="poste_source">Poste source</th>
                   <th scope="col" data-sort="gestionnaire">Gestionnaire</th>
+                  <th scope="col" data-sort="icpe_raison_sociale" title="Établissement ICPE apparié (Géorisques, rubrique 2910) : ● confiance forte, ◐ moyenne">ICPE (Géorisques)</th>
                 </tr>
               </thead>
               <tbody id="table-body"></tbody>
@@ -306,7 +319,7 @@
       <button class="icon-btn" id="fiche-close" aria-label="Fermer la fiche du site">✕</button>
     </div>
     <div class="qualify-site fiche-body" id="fiche-body"></div>
-    <p class="qualify-hint">Position au centroïde de la commune (geo.api.gouv.fr), pas du site. Données du registre ODRÉ, aucun champ inventé.</p>
+    <p class="qualify-hint">Position au centroïde de la commune (geo.api.gouv.fr), ou sur l'établissement ICPE apparié (Géorisques, rubrique 2910) quand la section « Installation classée » est renseignée. Données du registre ODRÉ et de Géorisques, aucun champ inventé.</p>
   </aside>
 
   <!-- FOOTER -->
@@ -321,12 +334,12 @@
   <script src="vendor/chartjs/chart.umd.min.js"></script>
 
   <!-- App -->
-  <script src="js/config.js?v=20260926-2"></script>
-  <script src="js/filters.js?v=20260926-2"></script>
-  <script src="js/map.js?v=20260926-2"></script>
-  <script src="js/charts.js?v=20260926-2"></script>
-  <script src="js/table.js?v=20260926-2"></script>
-  <script src="js/fiche.js?v=20260926-2"></script>
-  <script src="js/app.js?v=20260926-2"></script>
+  <script src="js/config.js?v=20260926-4"></script>
+  <script src="js/filters.js?v=20260926-4"></script>
+  <script src="js/map.js?v=20260926-4"></script>
+  <script src="js/charts.js?v=20260926-4"></script>
+  <script src="js/table.js?v=20260926-4"></script>
+  <script src="js/fiche.js?v=20260926-4"></script>
+  <script src="js/app.js?v=20260926-4"></script>
 </body>
 </html>

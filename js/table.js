@@ -90,6 +90,7 @@ const DataTable = (() => {
         <td title="${escapeHtml(d.usage_probable)}">${escapeHtml(d.usage_probable || '—')}</td>
         <td>${escapeHtml(d.poste_source || '—')}</td>
         <td title="${escapeHtml(d.gestionnaire || '')}">${escapeHtml(d.gestionnaire || '—')}</td>
+        <td title="${d.icpe_apparie ? escapeHtml(`${d.icpe_raison_sociale || ''} · ${d.icpe_regime || ''} · confiance ${d.icpe_confiance}`) : 'Aucun appariement Géorisques (position au centroïde de la commune)'}">${d.icpe_apparie ? `<span class="chip ${CONFIG.confianceInfo(d.icpe_confiance).cls}" style="margin-right:4px">${d.icpe_confiance === 'forte' ? '●' : '◐'}</span>${escapeHtml(d.icpe_raison_sociale || '—')}` : '—'}</td>
       `;
 
       tr.addEventListener('click', () => {
@@ -179,9 +180,16 @@ const DataTable = (() => {
       'Puissance de raccordement (kW)', 'Nombre de groupes', 'Date de raccordement', 'Date de mise en service', 'Année MES',
       'Cohorte', 'Fin de contrat initial (MES + 12)', 'Énergie injectée 12 mois (MWh)', 'Facteur de charge (%)', 'Statut',
       'Fenêtre de sortie', 'Cible D2', 'Usage probable', 'Régime', 'Latitude', 'Longitude', 'Précision géo',
-      'Lien registre ODRÉ', 'Lien Google Maps (centroïde commune)'];
+      'Latitude centroïde commune', 'Longitude centroïde commune',
+      // étape 4 : appariement Géorisques (rubrique 2910)
+      'ICPE confiance', 'ICPE raison sociale', 'ICPE SIRET', 'ICPE adresse', 'ICPE régime', 'ICPE rubrique',
+      'ICPE alinéa', 'ICPE régime rubrique', 'ICPE puissance thermique (MW)', 'ICPE état', 'ICPE Seveso',
+      'ICPE code AIOT', 'ICPE candidats commune', 'ICPE score', 'ICPE distance centroïde (km)',
+      'Lien registre ODRÉ', 'Lien Google Maps', 'Lien fiche Géorisques', 'Lien annuaire des entreprises'];
 
-    const rows = sortData(currentData).map(d => [
+    const rows = sortData(currentData).map(d => {
+      const rub = d.icpe_rubrique_2910 || {};
+      return [
       d.code_eic || '', d.nom || '', d.nom_confidentiel ? 'oui' : 'non', d.commune || '', d.code_insee || '',
       d.departement || '', d.code_departement || '', d.region || '',
       d.gestionnaire || '', d.poste_source || '', d.tension || '', d.technologie || '',
@@ -191,8 +199,14 @@ const DataTable = (() => {
       csvNum(d.energie_injectee_mwh), d.facteur_charge_pct != null ? csvNum(Math.round(d.facteur_charge_pct * 100) / 100) : '',
       d.statut || '', d.fenetre_sortie || '', d.cible ? 'oui' : 'non', d.usage_probable || '', d.regime || '',
       csvNum(d.lat), csvNum(d.lon), d.geo_precision || '',
+      csvNum(d.precisionKey === 'icpe' ? d.lat_commune : d.lat), csvNum(d.precisionKey === 'icpe' ? d.lon_commune : d.lon),
+      d.icpe_confiance || 'aucune', d.icpe_raison_sociale || '', d.icpe_siret || '', d.icpe_adresse || '', d.icpe_regime || '',
+      rub.numero || '', rub.alinea || '', rub.regime || '', csvNum(rub.puissance_th_mw), d.icpe_etat || '', d.icpe_seveso || '',
+      d.icpe_code_aiot || '', d.icpe_candidats != null ? d.icpe_candidats : '', csvNum(d.icpe_score), csvNum(d.icpe_distance_km),
       d.code_eic ? CONFIG.odreUrl(d.code_eic) : '', CONFIG.gmapsUrl(d.lat, d.lon) || '',
-    ]);
+      d.icpe_url || '', CONFIG.annuaireUrl(d.icpe_siret) || '',
+      ];
+    });
 
     const csvContent = [headers, ...rows]
       .map(row => row.map(cell => `"${String(cell == null ? '' : cell).replace(/"/g, '""')}"`).join(';'))

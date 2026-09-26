@@ -217,10 +217,11 @@ const MapView = (() => {
     const color = statutColor(d.statutKey);
     const r = radiusFor(d.puissance_mw);
     const size = r * 2;
-    // hors cible D2 : marqueur estompé
+    // hors cible D2 : marqueur estompé ; position ICPE (étape 4) : marqueur cerclé (css .marker-icpe)
+    const icpe = d.precisionKey === 'icpe';
     return L.divIcon({
       className: 'site-marker',
-      html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;
+      html: `<div class="${icpe ? 'marker-icpe' : 'marker-commune'}" style="width:${size}px;height:${size}px;background:${color};border-radius:50%;
         border:1.5px solid #fff;box-shadow:0 1px 3px rgba(30,66,96,0.4);
         ${d.cible ? '' : 'opacity:0.45;'}"></div>`,
       iconSize: [size, size],
@@ -234,12 +235,24 @@ const MapView = (() => {
     const c = statutColor(d.statutKey);
     return `<span class="chip" style="background:${c}22;color:${c}">${escapeHtml(statutLabel(d.statutKey))}</span>`;
   }
+  // Pastille de précision de position : « site ICPE » (cerclé) ou « ≈ commune »
+  function precisionChip(d) {
+    if (d.precisionKey === 'icpe') {
+      return `<span class="chip chip-green" title="Position de l'établissement ICPE apparié (Géorisques, rubrique 2910), confiance ${escapeHtml(CONFIG.confianceInfo(d.icpe_confiance).label.toLowerCase())}">● site ICPE</span>`;
+    }
+    return `<span class="chip chip-grey" title="Position au centroïde de la commune">≈ commune</span>`;
+  }
+  function confianceChip(key) {
+    const c = CONFIG.confianceInfo(key);
+    return `<span class="chip ${c.cls}">${escapeHtml(c.label)}</span>`;
+  }
+  const mapsTitle = (d) => (d.precisionKey === 'icpe' ? 'Google Maps sur le site (position ICPE)' : 'Google Maps au centroïde de la commune (pas le site)');
   function actionBar(d) {
     const a = [];
     a.push(`<a class="act" href="#" data-fiche-id="${escapeHtml(d.id)}" title="Fiche complète du site"><span class="act-ico">☰</span>Fiche</a>`);
     if (d.lat != null) a.push(`<a class="act" href="#" data-radius-id="${escapeHtml(d.id)}" title="Tracer un rayon autour de ce site"><span class="act-ico">⌖</span>Rayon</a>`);
     const gm = CONFIG.gmapsUrl(d.lat, d.lon);
-    if (gm) a.push(`<a class="act" href="${gm}" target="_blank" rel="noopener noreferrer" title="Google Maps au centroïde de la commune (pas le site)"><span class="act-ico">◎</span>Maps</a>`);
+    if (gm) a.push(`<a class="act" href="${gm}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(mapsTitle(d))}"><span class="act-ico">◎</span>Maps</a>`);
     if (d.code_eic) a.push(`<a class="act" href="${escapeHtml(CONFIG.odreUrl(d.code_eic))}" target="_blank" rel="noopener noreferrer" title="Enregistrement au registre ODRÉ (code EIC)"><span class="act-ico">⚙</span>ODRÉ</a>`);
     return `<div class="popup-actions">${a.join('')}</div>`;
   }
@@ -257,7 +270,12 @@ const MapView = (() => {
     rows.push(['Mise en service', `${d.annee_mes != null ? d.annee_mes : '—'} <span class="chip chip-grey">${escapeHtml(d.cohorte)}</span>`]);
     rows.push(['Fin contrat initial', `${d.fin_contrat_initial != null ? d.fin_contrat_initial : '—'} <span class="chip ${d.fenetreKey === '2026-2031' ? 'chip-green' : 'chip-grey'}" title="${escapeHtml(CONFIG.fenetreLabel(d.fenetreKey))}">${escapeHtml(fenetreShort(d.fenetreKey))}</span>`]);
     rows.push(['Usage probable', escapeHtml(d.usage_probable)]);
-    rows.push(['Poste source', `${escapeHtml(d.poste_source || '—')} · ${escapeHtml(d.gestionnaire || '—')} <span class="chip chip-grey" title="position au centroïde de la commune">≈ commune</span>`]);
+    rows.push(['Poste source', `${escapeHtml(d.poste_source || '—')} · ${escapeHtml(d.gestionnaire || '—')}`]);
+    if (d.icpe_apparie) {
+      rows.push(['ICPE', `${escapeHtml(d.icpe_raison_sociale || '—')}${d.icpe_regime ? ` <span class="chip chip-grey">${escapeHtml(d.icpe_regime)}</span>` : ''} ${precisionChip(d)}`]);
+    } else {
+      rows.push(['Position', precisionChip(d)]);
+    }
     return `
       ${titleHtml(d)}
       <dl class="popup-grid popup-grid-left">
@@ -307,23 +325,69 @@ const MapView = (() => {
       ['Statut', statutChip(d)],
       ['Usage probable', e(d.usage_probable)],
     ];
+    const icpePos = d.precisionKey === 'icpe';
     const position = [
       ['Latitude', d.lat != null ? fmtNum(d.lat, 4) : '—'],
       ['Longitude', d.lon != null ? fmtNum(d.lon, 4) : '—'],
-      ['Précision', `${e(d.geo_precision)} — position au centroïde de la commune`],
+      ['Précision', icpePos
+        ? `${precisionChip(d)} position de l'établissement ICPE apparié (Géorisques)${d.icpe_distance_km != null ? `, à ${fmtNum(d.icpe_distance_km, 1)} km du centroïde de la commune` : ''}`
+        : `${precisionChip(d)} position au centroïde de la commune (geo.api.gouv.fr)`],
     ];
+    if (icpePos && d.lat_commune != null) position.push(['Centroïde de la commune', `${fmtNum(d.lat_commune, 4)}, ${fmtNum(d.lon_commune, 4)}`]);
     const liens = [];
     if (d.code_eic) liens.push(`<a class="popup-link" href="${escapeHtml(CONFIG.odreUrl(d.code_eic))}" target="_blank" rel="noopener noreferrer" title="Registre national ODRÉ, recherche par code EIC">Registre ODRÉ ↗</a>`);
     const gm = CONFIG.gmapsUrl(d.lat, d.lon);
-    if (gm) liens.push(`<a class="popup-link" href="${gm}" target="_blank" rel="noopener noreferrer" title="Centre de la commune, pas le site">Google Maps (centroïde de la commune) ↗</a>`);
+    if (gm) liens.push(`<a class="popup-link" href="${gm}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(mapsTitle(d))}">Google Maps (${icpePos ? 'site ICPE' : 'centroïde de la commune'}) ↗</a>`);
+    if (d.icpe_url) liens.push(`<a class="popup-link" href="${escapeHtml(d.icpe_url)}" target="_blank" rel="noopener noreferrer" title="Fiche de l'établissement dans la base des installations classées">Fiche Géorisques ↗</a>`);
+    const an = CONFIG.annuaireUrl(d.icpe_siret);
+    if (an) liens.push(`<a class="popup-link" href="${an}" target="_blank" rel="noopener noreferrer" title="Annuaire des entreprises (data.gouv), établissement par SIRET">Annuaire des entreprises ↗</a>`);
     return `
       ${titleHtml(d)}
       <div class="fiche-links">${liens.join('')}</div>
       ${section('Identité', identite)}
+      ${icpeSection(d)}
       ${section('Raccordement', raccordement)}
       ${section('Contrat', contrat)}
       ${section('Activité', activite)}
       ${section('Position', position, false)}`;
+  }
+
+  /* ---- Section « Installation classée » (étape 4, Géorisques rubrique 2910) ----
+     Renseignée seulement quand l'appariement est fort ou moyen ; sinon le nombre
+     de candidats examinés dans la commune, sans rien inventer. */
+  function icpeSection(d) {
+    const e = (v) => (v == null || v === '' ? '—' : escapeHtml(String(v)));
+    if (!d.icpe_apparie) {
+      const n = d.icpe_candidats || 0;
+      const txt = n === 0
+        ? 'Aucun établissement à rubrique 2910 dans la commune (base Géorisques : établissements à autorisation ou enregistrement ; une cogénération seule en déclaration n\'y figure pas).'
+        : `${fmtInt(n)} établissement${n > 1 ? 's' : ''} à rubrique 2910 dans la commune, aucun ne concorde assez (nom, puissance, nature) : position au centroïde conservée.`;
+      return `<details class="fiche-sec fiche-sec-icpe" open><summary>Installation classée</summary>
+        <p class="icpe-empty">${confianceChip('aucune')} ${txt}</p></details>`;
+    }
+    const rub = d.icpe_rubrique_2910 || {};
+    const an = CONFIG.annuaireUrl(d.icpe_siret);
+    const siret = d.icpe_siret
+      ? (an ? `<a class="popup-link" href="${an}" target="_blank" rel="noopener noreferrer" title="Annuaire des entreprises (data.gouv)">${e(d.icpe_siret)} ↗</a>` : e(d.icpe_siret))
+      : '—';
+    const rubTxt = rub.numero
+      ? `${e(rub.numero)}${rub.alinea ? `-${e(rub.alinea)}` : ''}${rub.regime ? ` (${e(rub.regime)})` : ''}${rub.puissance_th_mw != null ? ` · ${fmtNum(rub.puissance_th_mw, 2)} MW thermiques` : ''}${rub.unite_corrigee ? ` <span class="info-ico" title="${escapeHtml(rub.unite_corrigee)}">ⓘ</span>` : ''}`
+      : 'aucune rubrique listée (établissement « Autres régimes » / « Non ICPE » : déclaration ou dossier ancien)';
+    const ratio = rub.puissance_th_mw != null && d.puissance_mw ? rub.puissance_th_mw / d.puissance_mw : null;
+    const rows = [
+      ['Raison sociale', e(d.icpe_raison_sociale)],
+      ['SIRET', siret],
+      ['Adresse', e(d.icpe_adresse)],
+      ['Régime', e(d.icpe_regime)],
+      ['Rubrique 2910', rubTxt],
+      ['Puissance th. / élec.', ratio != null ? `× ${fmtNum(ratio, 1)} <span class="info-ico" title="Puissance thermique de combustion déclarée ÷ puissance électrique du registre ; 2 à 3 attendu pour une cogénération seule, davantage si l'établissement hôte a d'autres chaudières">ⓘ</span>` : '—'],
+      ['État', e(d.icpe_etat)],
+      ['Seveso', e(d.icpe_seveso)],
+      ['Confiance', `${confianceChip(d.icpe_confiance)}${d.icpe_score != null ? ` <span class="kpi-sub">score ${fmtNum(d.icpe_score, 2)} · ${fmtInt(d.icpe_candidats)} candidat${d.icpe_candidats > 1 ? 's' : ''} dans la commune</span>` : ''}`],
+      ['Fiche Géorisques', d.icpe_url ? `<a class="popup-link" href="${escapeHtml(d.icpe_url)}" target="_blank" rel="noopener noreferrer">${e(d.icpe_code_aiot || 'fiche')} ↗</a>` : '—'],
+    ];
+    return `<details class="fiche-sec fiche-sec-icpe" open><summary>Installation classée</summary>
+      <dl class="popup-grid popup-grid-left">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v == null || v === '' ? '—' : v}</dd>`).join('')}</dl></details>`;
   }
 
   function update(data) {
@@ -406,7 +470,7 @@ const MapView = (() => {
           <span class="type-name">${escapeHtml(statutLabel(k))}</span>
           <span class="type-count">${fmtInt(counts[k] || 0)} · ${fmtInt(mw[k] || 0)} MW</span>
         </div>`).join('')}
-      <div class="legend-note">Taille du point ∝ puissance (MW) · position au centroïde de la commune</div>
+      <div class="legend-note">Taille du point ∝ puissance (MW) · <span class="legend-swatch icpe"></span> site ICPE (Géorisques) · <span class="legend-swatch"></span> centroïde de commune</div>
       <label class="legend-toggle"><input type="checkbox" id="legend-cluster" ${clustered ? 'checked' : ''}> Regrouper les marqueurs</label>
       <label class="legend-toggle"><input type="checkbox" id="legend-regions" ${regionsOn ? 'checked' : ''}> Contours des régions</label>
       </div>`;
