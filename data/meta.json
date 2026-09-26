@@ -18,7 +18,15 @@
       "records": 612,
       "mw": 2466
     },
-    "geo": "centroïde de commune (geo.api.gouv.fr, code INSEE)",
+    "geo": "position ICPE (Géorisques, rubrique 2910) pour 178 sites, centroïde de commune (geo.api.gouv.fr) sinon",
     "params_version": "v0.2 (26/09/2026)"
+  },
+  "icpe": {
+    "source": "Géorisques, base des installations classées (API REST, licence ouverte)",
+    "rubrique": "2910",
+    "date": "2026-09-26",
+    "forte": 74,
+    "moyenne": 104,
+    "positions_icpe": 178
   }
 }
