@@ -1,0 +1,41 @@
+{
+  "_comment": "Écrit par tools/check_geo.py : chaque site testé contre le contour de sa région (tools/geo/regions.geo.json).",
+  "date": "2026-09-26",
+  "mode": "rapport",
+  "tolerance_frontiere_deg": 0.02,
+  "regle": "hors_region -> region corrigée par la géométrie ; hors_france -> lat/lon retirés ; frontiere (< 2 km) -> inchangé",
+  "resultat": {
+    "testes": 654,
+    "conformes": 652,
+    "frontiere": 2,
+    "hors_region": 0,
+    "hors_france": 0,
+    "sans_coordonnees": 0
+  },
+  "anomalies": [
+    {
+      "verdict": "border",
+      "code_eic": "17W000000460445W",
+      "nom": "Confidentiel",
+      "commune": "Perros-Guirec",
+      "code_insee": "22168",
+      "region_declaree": "Bretagne",
+      "region_geometrique": null,
+      "lat": 48.8376,
+      "lon": -3.476,
+      "corrige": false
+    },
+    {
+      "verdict": "border",
+      "code_eic": "17W0000000561841",
+      "nom": "Confidentiel",
+      "commune": "Wattrelos",
+      "code_insee": "59650",
+      "region_declaree": "Hauts-de-France",
+      "region_geometrique": null,
+      "lat": 50.7125,
+      "lon": 3.2159,
+      "corrige": false
+    }
+  ]
+}
