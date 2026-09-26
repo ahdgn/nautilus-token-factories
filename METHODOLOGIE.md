@@ -1,4 +1,4 @@
-# Méthodologie — v0.3 (26/09/2026)
+# Méthodologie — v0.4 (26/09/2026)
 
 Ce document explique la logique du screening et les choix de design. Il est mis à jour
 dans la même PR que toute règle modifiée. Les seuils sont dans `tools/screening_params.json`.
@@ -37,7 +37,8 @@ d'inférence de 1 à 10 MW ?
 | `fenetre_sortie` | « 2026-2031 » si `annee_mes` + 12 est dans la fenêtre ; « contrat initial échu (≤ 2025), sortie au plus tard 2031 si rénové » si `annee_mes` + 12 < 2026 ; « hors obligation d'achat (MES ≥ 2020) » au-delà de 2019, le décret 2020-1079 ayant fermé tout nouveau soutien | Moyenne |
 | `cible` | Décision D2 : vrai si `statut` = dormante, ou si `annee_mes` ≤ 2019 (tout contrat d'achat de 12 ans encore en cours s'éteint avant le 01/01/2031, RTE). 612 unités sur 654 : le filtre est large par construction, ce sont les filtres de l'application et le score v1 qui hiérarchisent | Moyenne |
 | `usage_probable` | Mots-clés du nom (industrie, hôpital, réseau de chaleur, serres, campus) ; « À qualifier » sinon | Faible : indicatif |
-| `lat`, `lon` | Centroïde de la commune d'implantation (geo.api.gouv.fr) par code INSEE, sinon par nom et département ; contrôlé contre le contour de la région (§ 7) | Commune |
+| `lat`, `lon` | Position de l'établissement ICPE apparié (Géorisques, § 8) quand l'appariement est fort ou moyen (`geo_precision` = « icpe », centroïde conservé dans `lat_commune` / `lon_commune`) ; sinon centroïde de la commune d'implantation (geo.api.gouv.fr) par code INSEE, sinon par nom et département (`geo_precision` = « commune ») ; contrôlé contre le contour de la région (§ 7) | Site (178) / commune (476) |
+| `icpe_*` | Établissement ICPE apparié (§ 8) : SIRET, raison sociale, adresse, régime, rubrique 2910 (alinéa, régime, puissance thermique MW), état, Seveso, code AIOT et fiche Géorisques, confiance (forte / moyenne / aucune), score, nombre de candidats dans la commune, distance au centroïde. Vides sans appariement | Forte : élevée ; moyenne : à relire |
 
 ## 4. Limites connues
 
@@ -50,8 +51,8 @@ d'inférence de 1 à 10 MW ?
 3. 225 des 654 noms sont « Confidentiel » (51 parmi les 126 dormantes 1995-2010). La commune,
    le poste source et la puissance restent disponibles.
 4. Ni l'exploitant, ni le propriétaire, ni le régime d'achat, ni les coordonnées exactes ne
-   figurent dans le registre : appariements prévus avec Géorisques (SIRET, rubrique 2910),
-   SIRENE, France Chaleur Urbaine, puis Pappers sur accord.
+   figurent dans le registre. L'appariement Géorisques (§ 8) apporte position, SIRET et régime
+   ICPE pour 178 sites (27 %) ; restent prévus SIRENE, France Chaleur Urbaine, puis Pappers sur accord.
 5. Aucune liste nominative des contrats d'obligation d'achat n'est publiée (EDF OA, CRE, ATEE).
 
 ## 5. Vérifications faites (25/09/2026)
@@ -88,3 +89,77 @@ Pondérations à fixer avec l'équipe après la décision D2.
   choisi et le centroïde de commune de chaque site ; rayons proposés et défaut dans
   `tools/screening_params.json` (`rayons_km`, `rayon_km_defaut`). Le compteur « sites · MW dans le
   rayon » respecte les autres filtres ; la précision est celle du centroïde de commune, pas du site.
+
+## 8. Appariement Géorisques, installations classées (étape 4, 26/09/2026)
+
+- **Source** : Géorisques, base des installations classées, API REST
+  `https://georisques.gouv.fr/api/v1/installations_classees` (BRGM, licence ouverte 2.0, gratuite,
+  1 000 requêtes/min). Le filtre `rubrique` de l'API est ignoré (138 675 résultats avec ou sans,
+  vérifié le 26/09/2026) ; le filtre `code_insee` fonctionne et `page_size=1000` renvoie une commune
+  entière en une requête. `tools/geocode_icpe.py` interroge donc une fois chacune des 406 communes du
+  jeu (pause 0,25 s, reprise sur erreur 429 / 5xx) et met tous leurs établissements en cache, allégés
+  (`tools/cache/icpe_2910.json`, ignoré par git) : 13 336 établissements, dont 603 portent une
+  rubrique de combustion (2910, ou 3110 pour les grandes chaufferies IED ≥ 50 MW) dans 199 communes.
+  Le patron biométhane utilisait la couche WFS BRGM filtrée sur la rubrique 2781 ; l'API REST est
+  préférée ici parce qu'elle donne les rubriques avec alinéa et quantité (puissance thermique en MW).
+- **Ce que contient la base** : les établissements à autorisation ou enregistrement, avec leurs
+  rubriques chiffrées ; et des fiches « Autres régimes » ou « Non ICPE » (déclarations, dossiers
+  anciens) qui ont une position, un SIRET et une raison sociale mais aucune rubrique. Exemples :
+  « DALKIA - (CH René DUBOS - local cogé) » à Pontoise, « SA LESAFFRE FRERES » à Nangis,
+  « Gennevilliers Energie » (SIRET d'Engie Réseaux). Une cogénération seule (2910-A.2, 1-20 MW
+  thermiques : déclaration ou enregistrement) n'apparaît que si son dossier a été saisi ou si
+  l'établissement hôte est classé.
+- **Candidats** : établissements de la même commune (code INSEE) portant une rubrique 2910 ou 3110,
+  plus les fiches sans rubrique dont la raison sociale concorde avec le nom de l'installation
+  (similarité ≥ `seuil_nom_fort` = 0,5). Aucune recherche par rayon : un établissement d'une commune
+  voisine n'est jamais retenu.
+- **Score** (`tools/screening_params.json`, clé `icpe`) : moyenne pondérée des composantes
+  disponibles, poids nom 0,5 / puissance 0,3 / nature 0,2 ; une composante inconnue est retirée du
+  dénominateur, elle ne pénalise ni ne favorise.
+  - *Nom* : après normalisation (accents, ponctuation, minuscules), retrait des mots creux
+    (formes juridiques, « cogénération », « énergie », « chaufferie »…), des jetons du nom de la
+    commune (présents des deux côtés sans rien prouver) et synonymes (hôpital, CH, CHU, clinique →
+    un même jeton) ; score = part des jetons significatifs partagés, y compris par préfixe
+    (LESAFFRE / LESAFFRE FRERES), ou ratio de séquence s'il dépasse 0,9. Sans objet pour les 225
+    noms « Confidentiel ».
+  - *Puissance* : rapport puissance thermique de combustion (MW, la plus grande ligne 2910 / 3110,
+    une valeur « MW » > 500 est lue en kW) sur puissance électrique du registre : 1 si 1,8 ≤ r ≤ 3,5
+    (rendement électrique 30-55 %) ; 0,6 si 1 ≤ r ≤ 8 ; 0,3 au-delà (établissement hôte avec
+    d'autres chaudières : chaufferie de réseau, sucrerie) ; 0 si r < 1 (incompatible). Sans objet
+    pour une fiche sans rubrique chiffrée.
+  - *Nature* : usage probable du site (§ 3) contre famille de l'établissement, déduite de la raison
+    sociale (expressions régulières) et de la division NAF (35 énergie, 86-87 santé, 01 agriculture,
+    10-33 industrie, 85 / 93 campus) : 1 si concordance, 0,75 si un énergéticien porte la cogé d'un
+    hôpital ou d'un campus, 0,5 sans indice, 0 si contradiction.
+  - *Bonus* + 0,1 si la raison sociale mentionne la cogénération (« local cogé », « COGE DU
+    COSQUER ») ; malus × 0,5 si l'établissement est en cessation d'activité.
+- **Décision** : « forte » si le nom concorde (≥ 0,5) et le score atteint 0,6, ou si le candidat est
+  unique avec puissance et nature concordantes ; pour une fiche sans rubrique, « forte » exige en
+  plus des noms identiques, une nature concordante ou la mention de la cogénération (un nom de
+  quartier partagé, « COGENERATION CHATEAUCREUX » / « CARROSSERIE DE CHATEAUCREUX », ne suffit pas) ;
+  « moyenne » si le score atteint 0,55, ou 0,4 pour un candidat unique plausible ; « aucune » sinon,
+  et toujours si la puissance est contradictoire sans nom probant. Un second candidat (autre SIRET)
+  à moins de 0,15 du premier ramène « forte » à « moyenne » ; à moins de 0,05 et nom masqué, on ne
+  tranche pas (« aucune »). La position ICPE n'est appliquée que sous 15 km du centroïde (aucun
+  cas au-delà de 5,9 km).
+- **Résultat du 26/09/2026** (`tools/icpe_report.json`) : 654 sites testés, 357 avec au moins un
+  candidat, 74 appariements forts, 104 moyens, 476 sans appariement (taux 27 %) ; 178 sites
+  positionnés sur leur établissement (870 MW ; 167 dans la cible D2, 820 MW). Régimes retenus :
+  61 autorisation, 58 enregistrement, 50 « Autres régimes », 9 « Non ICPE » ; 92 fiches avec
+  rubrique chiffrée (2910-A.1 : 22, 2910-A.2 : 49, 2910-B.1 : 2, 3110 : 19), 86 sans. Distance
+  centroïde → ICPE : médiane 1,5 km, maximum 5,9 km. Contrôle géométrique relancé : 178 positions
+  ICPE testées, 0 hors région, 0 hors de France ; KPI par défaut inchangés (612 / 2 466 MW).
+- **Retour arrière** : `python tools/geocode_icpe.py --restore` (centroïdes rétablis, champs
+  `icpe_*` retirés) ; `check_geo.py --apply` ramène au centroïde toute position ICPE qui sortirait
+  de sa région.
+- **Limites** : (1) la base ne liste que les établissements classés A/E et les déclarations
+  saisies : 297 sites n'ont aucun candidat dans leur commune, dont « BONDY ENERGIE » ; (2) homonymies
+  et sites multi-établissements : « Cogénération Caucriauville » au Havre reste sans appariement
+  parmi 10 candidats (deux réseaux de chaleur, Résocéane et Mont-Gaillard, sans lien de nom) ;
+  (3) 48 des 104 appariements moyens concernent des noms « Confidentiel » retenus sur la seule
+  cohérence de puissance (et de nature) avec un candidat nettement dominant : à relire un par un
+  avant usage nominatif ; (4) la position ICPE est celle de l'établissement, parfois son siège ou
+  son entrée, pas celle du groupe de cogénération ; (5) un même SIRET peut porter plusieurs fiches
+  (sucrerie et « SA LESAFFRE FRERES » à Nangis) : la fiche la mieux nommée est retenue, l'autre
+  n'est pas comptée comme ambiguïté ; (6) la puissance thermique de la rubrique est celle de
+  l'établissement entier (chaudières comprises), d'où la tolérance large du rapport.

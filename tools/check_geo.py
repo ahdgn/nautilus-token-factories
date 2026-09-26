@@ -14,7 +14,12 @@ Règle, identique à celle du patron :
   · à moins de 2 km du contour de la région déclarée (frontière régionale,
     frontière nationale ou trait de côte) -> bénéfice du doute, inchangé. Ajout
     par rapport au patron : le centroïde d'une commune littorale ou frontalière
-    peut tomber en mer ou de l'autre côté de la frontière (Perros-Guirec, Wattrelos).
+    peut tomber en mer ou de l'autre côté de la frontière (Perros-Guirec, Wattrelos) ;
+  · étape 4 : une position ICPE (geo_precision = « icpe », tools/geocode_icpe.py)
+    hors de sa région ou hors de France est jugée douteuse : avec --apply, retour au
+    centroïde de commune (lat_commune / lon_commune), confiance ICPE ramenée à
+    « aucune », motif dans `icpe_position_rejetee`. Le rapport compte les positions
+    ICPE testées et en anomalie.
 
 Usage :
   python tools/check_geo.py            # rapport seulement (tools/geo_report.json)
@@ -71,20 +76,40 @@ def run(apply):
     regions = load_regions()
     sites = json.load(open(DATA_PATH, encoding="utf-8"))
     stats = {"testes": len(sites), "conformes": 0, "frontiere": 0, "hors_region": 0,
-             "hors_france": 0, "sans_coordonnees": 0}
+             "hors_france": 0, "sans_coordonnees": 0,
+             # étape 4 : positions issues de la base ICPE (Géorisques), testées de la même façon
+             "positions_icpe_testees": 0, "positions_icpe_anomalies": 0}
     anomalies = []
     verdict_key = {"ok": "conformes", "border": "frontiere", "mismatch": "hors_region",
                    "outside": "hors_france", "nocoord": "sans_coordonnees"}
     for d in sites:
         verdict, inside = check_point(regions, d.get("region"), d.get("lat"), d.get("lon"))
         stats[verdict_key[verdict]] += 1
+        icpe = str(d.get("geo_precision") or "").startswith("icpe")
+        if icpe:
+            stats["positions_icpe_testees"] += 1
         if verdict in ("mismatch", "outside", "border"):
+            if icpe:
+                stats["positions_icpe_anomalies"] += 1
             anomalies.append({"verdict": verdict, "code_eic": d.get("code_eic"), "nom": d.get("nom"),
                               "commune": d.get("commune"), "code_insee": d.get("code_insee"),
                               "region_declaree": d.get("region"), "region_geometrique": inside,
-                              "lat": d.get("lat"), "lon": d.get("lon"),
+                              "lat": d.get("lat"), "lon": d.get("lon"), "geo_precision": d.get("geo_precision"),
                               "corrige": apply and verdict != "border"})
-            if apply and verdict == "mismatch":
+            if apply and verdict in ("mismatch", "outside") and icpe and d.get("lat_commune") is not None:
+                # position ICPE hors de sa région ou hors de France : l'appariement est douteux,
+                # on revient au centroïde de commune (les champs icpe_* restent, confiance dégradée)
+                d["lat"], d["lon"] = d["lat_commune"], d["lon_commune"]
+                d["geo_precision"] = "commune"
+                d["icpe_confiance"] = "aucune"
+                d["icpe_position_rejetee"] = verdict
+                verdict2, inside2 = check_point(regions, d.get("region"), d["lat"], d["lon"])
+                anomalies[-1]["retour_centroide"] = True
+                anomalies[-1]["verdict_centroide"] = verdict2
+                if verdict2 == "mismatch":
+                    d["region_registre"] = d.get("region")
+                    d["region"] = inside2
+            elif apply and verdict == "mismatch":
                 d["region_registre"] = d.get("region")
                 d["region"] = inside
             elif apply and verdict == "outside":
@@ -95,7 +120,7 @@ def run(apply):
         "date": date.today().isoformat(),
         "mode": "apply" if apply else "rapport",
         "tolerance_frontiere_deg": BORDER_TOL_DEG,
-        "regle": "hors_region -> region corrigée par la géométrie ; hors_france -> lat/lon retirés ; frontiere (< 2 km) -> inchangé",
+        "regle": "hors_region -> region corrigée par la géométrie ; hors_france -> lat/lon retirés ; frontiere (< 2 km) -> inchangé ; position ICPE hors région ou hors de France -> retour au centroïde de commune",
         "resultat": stats,
         "anomalies": anomalies,
     }

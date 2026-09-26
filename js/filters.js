@@ -16,6 +16,8 @@ const Filters = (() => {
     usage:   { id: 'filter-usage',   url: 'u',  value: (d) => d.usage_probable },
     tranche: { id: 'filter-tranche', url: 'p',  value: (d) => d.trancheKey || 'hors',
                label: (k) => { const t = CONFIG.tranches().find(x => x.key === k); return t ? t.label : 'Hors tranches'; } },
+    // étape 4 : précision de la position (site ICPE Géorisques ou centroïde de commune)
+    precision: { id: 'filter-precision', url: 'gp', value: (d) => d.precisionKey, label: CONFIG.precisionLabel },
   };
 
   const state = {
@@ -57,6 +59,7 @@ const Filters = (() => {
       else if (g === 'fenetre') keys = FENETRES.map(f => f.key).filter(k => counts[k] != null).concat(keys.filter(k => !FENETRES.some(f => f.key === k)));
       else if (g === 'cohorte') keys = PARAMS.cohortes.map(c => c.label).filter(k => counts[k] != null).concat(keys.filter(k => !PARAMS.cohortes.some(c => c.label === k)));
       else if (g === 'tranche') keys = CONFIG.tranches().map(t => t.key).filter(k => counts[k] != null).concat(keys.filter(k => !CONFIG.tranches().some(t => t.key === k)));
+      else if (g === 'precision') keys = CONFIG.PRECISIONS.map(p => p.key).filter(k => counts[k] != null).concat(keys.filter(k => !CONFIG.PRECISIONS.some(p => p.key === k)));
       else if (g === 'region') keys.sort((a, b) => a.localeCompare(b, 'fr'));
       else keys.sort((a, b) => counts[b] - counts[a]);
       options[g] = keys.map(k => ({ key: k, count: counts[k] }));
@@ -284,7 +287,9 @@ const Filters = (() => {
       if (state.search) {
         const hit = (d.nom || '').toLowerCase().includes(state.search)
           || (d.commune || '').toLowerCase().includes(state.search)
-          || (d.poste_source || '').toLowerCase().includes(state.search);
+          || (d.poste_source || '').toLowerCase().includes(state.search)
+          || (d.icpe_raison_sociale || '').toLowerCase().includes(state.search)
+          || (d.icpe_siret || '').includes(state.search);
         if (!hit) return false;
       }
       for (const [g, cfg] of Object.entries(GROUPS)) {
@@ -326,6 +331,9 @@ const Filters = (() => {
     const fen = f.filter(d => d.fenetreKey === '2026-2031');
     const nommes = f.filter(d => !d.nom_confidentiel).length;
     const conf = f.length - nommes;
+    // étape 4 : sites positionnés sur leur établissement ICPE (appariement fort ou moyen)
+    const icpe = f.filter(d => d.precisionKey === 'icpe');
+    const icpeForte = icpe.filter(d => d.icpe_confiance === 'forte').length;
 
     const cards = [];
     cards.push(kpi('Sites', `${fmtInt(f.length)} <span class="kpi-sub">/ ${fmtInt(allData.length)}</span>`));
@@ -333,12 +341,14 @@ const Filters = (() => {
     cards.push(kpi('Dormantes (FC < 5 %)', `${fmtInt(dorm.length)} <span class="kpi-sub">· ${fmtInt(sumMw(dorm))} MW</span>`));
     cards.push(kpi('Sortie OA 2026-2031', `${fmtInt(fen.length)} <span class="kpi-sub">· ${fmtInt(sumMw(fen))} MW</span>`));
     cards.push(kpi('Nommés / confidentiels', `${fmtInt(nommes)} <span class="kpi-sub">/ ${fmtInt(conf)}</span>`));
+    cards.push(kpi('Positions ICPE', `${fmtInt(icpe.length)} <span class="kpi-sub">· ${fmtInt(icpeForte)} fortes · ${fmtInt(sumMw(icpe))} MW</span>`,
+      false, 'Sites positionnés sur leur établissement ICPE (Géorisques, rubrique 2910) : appariement de confiance forte ou moyenne'));
 
     strip.innerHTML = cards.join('');
   }
 
-  function kpi(label, valueHtml, accent = false) {
-    return `<div class="kpi-card${accent ? ' kpi-accent' : ''}">
+  function kpi(label, valueHtml, accent = false, title = '') {
+    return `<div class="kpi-card${accent ? ' kpi-accent' : ''}"${title ? ` title="${escapeHtml(title)}"` : ''}>
       <span class="kpi-label">${label}</span>
       <span class="kpi-value">${valueHtml}</span>
     </div>`;

@@ -115,6 +115,32 @@ const CONFIG = (() => {
     return t ? t.key : null;
   }
 
+  /* ---- Précision de la position (étape 4) ----
+     « commune » = centroïde de la commune (geo.api.gouv.fr) ;
+     « icpe » = établissement de la base des installations classées (Géorisques,
+     rubrique 2910), position réelle. Clés stables pour le filtre et l'URL. */
+  const PRECISIONS = [
+    { key: 'icpe', label: 'Site ICPE (Géorisques)', short: 'site ICPE' },
+    { key: 'commune', label: 'Centroïde de la commune', short: '≈ commune' },
+    { key: 'na', label: 'Sans position', short: '—' },
+  ];
+  const PRECISION_BY_KEY = Object.fromEntries(PRECISIONS.map(p => [p.key, p]));
+  function precisionKey(d) {
+    if (d.lat == null || d.lon == null) return 'na';
+    return String(d.geo_precision || '').toLowerCase().startsWith('icpe') ? 'icpe' : 'commune';
+  }
+  const precisionLabel = (key) => (PRECISION_BY_KEY[key] || PRECISION_BY_KEY.na).label;
+  const precisionShort = (key) => (PRECISION_BY_KEY[key] || PRECISION_BY_KEY.na).short;
+
+  /* Confiance de l'appariement ICPE (tools/geocode_icpe.py) : forte / moyenne / aucune */
+  const CONFIANCES = [
+    { key: 'forte', label: 'Forte', cls: 'chip-green' },
+    { key: 'moyenne', label: 'Moyenne (à relire)', cls: 'chip-amber' },
+    { key: 'aucune', label: 'Aucune', cls: 'chip-grey' },
+  ];
+  const CONFIANCE_BY_KEY = Object.fromEntries(CONFIANCES.map(c => [c.key, c]));
+  const confianceInfo = (key) => CONFIANCE_BY_KEY[String(key || '').toLowerCase()] || CONFIANCE_BY_KEY.aucune;
+
   /* ---- Normalisation d'un enregistrement de data/cogenerations_gaz.json ----
      Les champs du jeu de données sont conservés tels quels ; on ajoute
      l'identifiant, les clés de filtre et le facteur de charge en %. */
@@ -133,6 +159,15 @@ const CONFIG = (() => {
     r.cohorte = d.cohorte || '—';
     r.region = d.region || '';
     r.gestionnaire = d.gestionnaire || '';
+    // étape 4 : précision de position et appariement ICPE
+    r.precisionKey = precisionKey(d);
+    r.icpe_confiance = d.icpe_confiance || 'aucune';
+    r.icpe_apparie = r.icpe_confiance === 'forte' || r.icpe_confiance === 'moyenne';
+    r.icpe_candidats = d.icpe_candidats != null ? Number(d.icpe_candidats) : 0;
+    const rub = d.icpe_rubrique_2910 || null;
+    r.icpe_alinea = rub ? rub.alinea || null : null;
+    r.icpe_rubrique_regime = rub ? rub.regime || null : null;
+    r.icpe_puissance_th_mw = rub && rub.puissance_th_mw != null ? Number(rub.puissance_th_mw) : null;
     return r;
   }
 
@@ -141,6 +176,11 @@ const CONFIG = (() => {
   const odreUrl = (codeEic) =>
     `https://odre.opendatasoft.com/explore/dataset/${ODRE_DATASET}/table/?q=${encodeURIComponent(codeEic || '')}`;
   const gmapsUrl = (lat, lon) => (lat != null && lon != null ? `https://www.google.com/maps?q=${lat},${lon}` : null);
+  // Annuaire des entreprises (data.gouv) : fiche de l'établissement par SIRET
+  const annuaireUrl = (siret) => {
+    const s = String(siret || '').replace(/\s/g, '');
+    return /^\d{14}$/.test(s) ? `https://annuaire-entreprises.data.gouv.fr/etablissement/${s}` : null;
+  };
 
   const SOURCE_NOTE = 'ODRÉ, registre national des installations de production et de stockage d\'électricité (licence ouverte)';
 
@@ -163,7 +203,8 @@ const CONFIG = (() => {
 
   return { PALETTE, STATUTS, statutKey, statutColor, statutLabel,
            FENETRES, fenetreKey, fenetreLabel, fenetreShort,
+           PRECISIONS, precisionKey, precisionLabel, precisionShort, CONFIANCES, confianceInfo,
            PARAMS, setParams, tranches, trancheKey, normalize,
-           odreUrl, gmapsUrl, SOURCE_NOTE,
+           odreUrl, gmapsUrl, annuaireUrl, SOURCE_NOTE,
            fmtInt, fmtNum, fmtPct, fmtDate, escapeHtml, csvNum };
 })();
