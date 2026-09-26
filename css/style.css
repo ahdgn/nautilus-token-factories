@@ -1,6 +1,8 @@
 /* ============================================
-   Biométhane France — thème clair institutionnel
+   Nautilus Token Factories — thème clair institutionnel
    Palette & typographie : charte Nautilus (Masterbook)
+   Feuille reprise du patron biomethane-france ;
+   les adaptations propres à ce projet sont en fin de fichier.
    ============================================ */
 
 /* ---- Fontes auto-hébergées ---- */
@@ -1179,3 +1181,35 @@ body.qualify-open .bottom-panel { display: none; }
 
   .panel-resizer { top: -8px; height: 16px; }
 }
+
+/* ============ NAUTILUS TOKEN FACTORIES (étape 2) ============ */
+/* Cinq indicateurs en tête au lieu de quatre */
+.kpi-strip-5 { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1100px) {
+  /* 3 + 2 cartes, sans case vide */
+  .kpi-strip-5 { grid-template-columns: repeat(6, 1fr); }
+  .kpi-strip-5 .kpi-card { grid-column: span 2; }
+  .kpi-strip-5 .kpi-card:nth-child(4), .kpi-strip-5 .kpi-card:nth-child(5) { grid-column: span 3; }
+}
+@media (max-width: 860px) {
+  .kpi-strip-5 { grid-template-columns: repeat(2, 1fr); }
+  .kpi-strip-5 .kpi-card, .kpi-strip-5 .kpi-card:nth-child(4) { grid-column: auto; }
+  .kpi-strip-5 .kpi-card:nth-child(5) { grid-column: span 2; }
+}
+
+/* Fiche du site : panneau en lecture seule, contenu sur toute la hauteur ;
+   la colonne principale se rétrécit au lieu d'être recouverte, le panneau
+   bas (graphiques, tableau) reste utilisable. */
+.fiche-drawer .fiche-body { max-height: none; flex: 1; }
+.fiche-drawer .fiche-links { margin: 4px 0 8px; }
+@media (min-width: 861px) { body.fiche-open .main-content { margin-right: min(420px, 92vw); } }
+
+/* Légende : statut masqué estompé, interrupteur de regroupement */
+.legend-item.legend-off { opacity: 0.45; }
+.legend-item.legend-off .type-name { text-decoration: line-through; }
+.legend-toggle { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 10.5px; color: var(--muted); cursor: pointer; }
+.legend-toggle input { accent-color: var(--teal); width: 12px; height: 12px; cursor: pointer; }
+.map-legend { max-width: 260px; }
+
+/* Bulle d'information du filtre cible */
+.info-pop code { font-size: 10.5px; }
