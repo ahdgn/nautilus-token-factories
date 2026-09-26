@@ -1213,3 +1213,14 @@ body.qualify-open .bottom-panel { display: none; }
 
 /* Bulle d'information du filtre cible */
 .info-pop code { font-size: 10.5px; }
+
+/* ---- Outil de rayon (étape 3) ---- */
+.radius-pick { text-align: left; width: 100%; }
+.radius-pick[aria-pressed="true"] { background: var(--teal); color: #fff; border-color: var(--teal); }
+.radius-result { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 6px; background: var(--teal-dim); }
+.radius-count { font-size: 13px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.radius-count strong { font-weight: 700; }
+#radius-km .seg-btn { flex: 1; text-align: center; }
+.leaflet-container.map-picking { cursor: crosshair; }
+.leaflet-container.map-picking .leaflet-marker-icon { cursor: crosshair; }
+.leaflet-bar a.map-pick-btn.active { background: var(--teal); color: #fff; }

@@ -77,6 +77,8 @@ const CONFIG = (() => {
     cohorte_cible: '1995-2010',
     tranches_puissance_mw: [[1, 3], [3, 6], [6, 12], [12, 20]],
     regions_prioritaires: ['Île-de-France', 'Hauts-de-France', 'Normandie'],
+    rayon_km_defaut: 25,            // outil de rayon (étape 3)
+    rayons_km: [5, 10, 25, 50],
     cible: { fenetre_min: 2026, fenetre_max: 2031, annee_mes_max_oa: 2019 },
     statut: { dormante_max: 0.05, faible_max: 0.15 },
     version: '',
@@ -87,6 +89,8 @@ const CONFIG = (() => {
     if (p.cohorte_cible) PARAMS.cohorte_cible = p.cohorte_cible;
     if (Array.isArray(p.tranches_puissance_mw) && p.tranches_puissance_mw.length) PARAMS.tranches_puissance_mw = p.tranches_puissance_mw;
     if (Array.isArray(p.regions_prioritaires) && p.regions_prioritaires.length) PARAMS.regions_prioritaires = p.regions_prioritaires;
+    if (Array.isArray(p.rayons_km) && p.rayons_km.length) PARAMS.rayons_km = p.rayons_km.map(Number).filter(n => n > 0);
+    if (p.rayon_km_defaut != null && Number(p.rayon_km_defaut) > 0) PARAMS.rayon_km_defaut = Number(p.rayon_km_defaut);
     if (p.cible) Object.assign(PARAMS.cible, p.cible);
     if (p.statut) {
       if (p.statut.dormante_max != null) PARAMS.statut.dormante_max = p.statut.dormante_max;

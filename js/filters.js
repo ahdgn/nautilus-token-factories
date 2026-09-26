@@ -24,7 +24,10 @@ const Filters = (() => {
     gestionnaire: '',
     masque: '',         // '' | 'nommes' | 'confidentiels'
     sel: {},            // groupe -> Set des valeurs retenues
+    radius: null,       // null | { lat, lon, km, label } : outil de rayon (étape 3)
+    radiusFilter: true, // le rayon restreint carte et tableau (sinon simple compteur)
   };
+  let inRadiusData = []; // sites dans le rayon (après les autres filtres)
   const options = {};   // groupe -> liste ordonnée des valeurs possibles
   let allData = [];
   let filteredData = [];
@@ -40,6 +43,7 @@ const Filters = (() => {
     bindEvents();
     syncControls();
     applyFilters();
+    if (state.radius) MapView.showRadius(state.radius.lat, state.radius.lon, state.radius.km);
   }
 
   function computeOptions() {
@@ -81,6 +85,10 @@ const Filters = (() => {
     const select = document.getElementById('filter-gestionnaire');
     Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b, 'fr'))
       .forEach(gest => select.appendChild(new Option(`${gest} (${fmtInt(counts[gest])})`, gest)));
+
+    // Rayons proposés (tools/screening_params.json : rayons_km, rayon_km_defaut)
+    document.getElementById('radius-km').innerHTML = PARAMS.rayons_km.map(km =>
+      `<button class="seg-btn" data-km="${km}" aria-pressed="false">${fmtInt(km)} km</button>`).join('');
   }
 
   /* ---------------- URL <-> état ---------------- */
@@ -93,6 +101,12 @@ const Filters = (() => {
     if (p.has('q')) state.search = p.get('q').trim().toLowerCase();
     if (p.has('g')) state.gestionnaire = p.get('g');
     if (p.has('n') && ['nommes', 'confidentiels'].includes(p.get('n'))) state.masque = p.get('n');
+    if (p.has('rad')) {
+      const [la, lo, km] = p.get('rad').split(',').map(Number);
+      if (Number.isFinite(la) && Number.isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180)
+        state.radius = { lat: la, lon: lo, km: PARAMS.rayons_km.includes(km) ? km : PARAMS.rayon_km_defaut, label: '' };
+      if (p.get('rf') === '0') state.radiusFilter = false;
+    }
     Object.entries(GROUPS).forEach(([g, cfg]) => {
       if (!p.has(cfg.url)) return;
       const wanted = new Set(p.get(cfg.url).split('|'));
@@ -107,6 +121,10 @@ const Filters = (() => {
     if (state.search) p.set('q', state.search);
     if (state.gestionnaire) p.set('g', state.gestionnaire);
     if (state.masque) p.set('n', state.masque);
+    if (state.radius) {
+      p.set('rad', `${state.radius.lat},${state.radius.lon},${state.radius.km}`);
+      if (!state.radiusFilter) p.set('rf', '0');
+    }
     Object.entries(GROUPS).forEach(([g, cfg]) => {
       if (state.sel[g].size !== options[g].length) p.set(cfg.url, [...state.sel[g]].join('|'));
     });
@@ -173,6 +191,30 @@ const Filters = (() => {
       applyFilters();
     });
 
+    // Outil de rayon : bouton -> mode pointage (un clic sur la carte place le
+    // centre) ; rayons proposés ; interrupteur « dans le rayon » ; retrait
+    document.getElementById('radius-pick').addEventListener('click', () => MapView.setPickMode(!MapView.isPicking()));
+    document.getElementById('radius-km').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-km]');
+      if (!btn) return;
+      const km = Number(btn.dataset.km);
+      if (state.radius) {
+        state.radius.km = km;
+        MapView.showRadius(state.radius.lat, state.radius.lon, km);
+        applyFilters();
+      } else {
+        // pas encore de centre : mémorise le rayon et passe en mode pointage
+        pendingKm = km;
+        syncRadiusKm();
+        MapView.setPickMode(true);
+      }
+    });
+    document.getElementById('radius-filter').addEventListener('change', (e) => {
+      state.radiusFilter = e.target.checked;
+      applyFilters();
+    });
+    document.getElementById('radius-clear').addEventListener('click', clearRadius);
+
     // Réinitialisation
     document.getElementById('btn-reset').addEventListener('click', resetFilters);
     const mapReset = document.getElementById('map-empty-reset');
@@ -217,6 +259,7 @@ const Filters = (() => {
     document.getElementById('filter-gestionnaire').value = state.gestionnaire;
     syncSegmented('filter-masque', 'masque', state.masque);
     Object.keys(GROUPS).forEach(syncGroup);
+    syncRadiusKm();
   }
 
   function activeFilterCount() {
@@ -225,6 +268,7 @@ const Filters = (() => {
     if (state.search) n++;
     if (state.gestionnaire) n++;
     if (state.masque) n++;
+    if (state.radius && state.radiusFilter) n++;
     Object.keys(GROUPS).forEach(g => { if (state.sel[g].size !== options[g].length) n++; });
     return n;
   }
@@ -232,7 +276,7 @@ const Filters = (() => {
   /* ---------------- filtrage ---------------- */
 
   function applyFilters() {
-    filteredData = allData.filter(d => {
+    const base = allData.filter(d => {
       if (state.cible && !d.cible) return false;
       if (state.masque === 'nommes' && d.nom_confidentiel) return false;
       if (state.masque === 'confidentiels' && !d.nom_confidentiel) return false;
@@ -248,6 +292,18 @@ const Filters = (() => {
       }
       return true;
     });
+    // Rayon : compteur sur les sites passant les autres filtres ; restriction
+    // de la carte et du tableau seulement si l'interrupteur est actif
+    if (state.radius) {
+      const r = state.radius;
+      inRadiusData = base.filter(d => d.lat != null && d.lon != null
+        && haversineKm(r.lat, r.lon, d.lat, d.lon) <= r.km);
+      filteredData = state.radiusFilter ? inRadiusData : base;
+    } else {
+      inRadiusData = [];
+      filteredData = base;
+    }
+    updateRadiusUI();
 
     const n = activeFilterCount();
     const resetBtn = document.getElementById('btn-reset');
@@ -295,14 +351,76 @@ const Filters = (() => {
     state.search = '';
     state.gestionnaire = '';
     state.masque = '';
+    state.radius = null;
+    state.radiusFilter = true;
+    pendingKm = null;
+    MapView.hideRadius();
     Object.keys(GROUPS).forEach(g => { state.sel[g] = new Set(options[g].map(o => o.key)); });
     syncControls();
     applyFilters();
   }
 
+  /* ---------------- outil de rayon ---------------- */
+
+  let pendingKm = null; // rayon choisi avant que le centre soit placé
+
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371, rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad, dLon = (lon2 - lon1) * rad;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  // Centre placé par un clic sur la carte (label vide) ou depuis le popup d'un site
+  function setRadiusCenter(lat, lon, label) {
+    const km = state.radius ? state.radius.km : (pendingKm || PARAMS.rayon_km_defaut);
+    pendingKm = null;
+    setRadius(lat, lon, km, label);
+  }
+
+  function setRadius(lat, lon, km, label) {
+    state.radius = { lat: Number(lat.toFixed(4)), lon: Number(lon.toFixed(4)), km, label: label || '' };
+    MapView.showRadius(state.radius.lat, state.radius.lon, km);
+    applyFilters();
+  }
+
+  function clearRadius() {
+    state.radius = null;
+    state.radiusFilter = true;
+    pendingKm = null;
+    MapView.hideRadius();
+    applyFilters();
+  }
+
+  function syncRadiusKm() {
+    const km = state.radius ? state.radius.km : pendingKm;
+    document.querySelectorAll('#radius-km .seg-btn').forEach(b => {
+      b.setAttribute('aria-pressed', String(Number(b.dataset.km) === km));
+    });
+  }
+
+  function updateRadiusUI() {
+    const result = document.getElementById('radius-result');
+    if (!result) return;
+    result.hidden = !state.radius;
+    document.getElementById('radius-clear').hidden = !state.radius;
+    syncRadiusKm();
+    if (!state.radius) return;
+    const r = state.radius;
+    document.getElementById('radius-label').textContent = r.label
+      ? `${fmtInt(r.km)} km autour de ${r.label}`
+      : `${fmtInt(r.km)} km autour du point ${fmtNum(r.lat, 3)}, ${fmtNum(r.lon, 3)}`;
+    document.getElementById('radius-count').innerHTML =
+      `<strong>${fmtInt(inRadiusData.length)}</strong> site${inRadiusData.length > 1 ? 's' : ''} · <strong>${fmtInt(sumMw(inRadiusData))}</strong> MW dans le rayon`;
+    document.getElementById('radius-filter').checked = state.radiusFilter;
+  }
+
   function onChange(cb) { onChangeCallbacks.push(cb); }
   function getFiltered() { return filteredData; }
+  function getInRadius() { return inRadiusData; }
   function getState() { return state; }
 
-  return { init, onChange, getFiltered, getState, toggleValue, resetFilters };
+  return { init, onChange, getFiltered, getInRadius, getState, toggleValue, resetFilters,
+           setRadius, setRadiusCenter, clearRadius };
 })();

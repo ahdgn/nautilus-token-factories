@@ -10,7 +10,7 @@
   <!-- Librairies vendorisées (pas de CDN, pas de fonte externe) -->
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
-  <link rel="stylesheet" href="css/style.css?v=20260926-1">
+  <link rel="stylesheet" href="css/style.css?v=20260926-2">
 </head>
 <body>
 
@@ -62,6 +62,29 @@
           </ul>
           Champ <code>cible</code> du jeu de données ; seuils dans <code>tools/screening_params.json</code>.
         </div>
+      </div>
+
+      <!-- Rayon de recherche (étape 3) -->
+      <div class="filter-group" id="group-radius">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-radius">Rayon de recherche</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" id="radius-clear" hidden>retirer</button>
+          </span>
+        </div>
+        <button class="btn-secondary radius-pick" id="radius-pick" aria-pressed="false"
+                title="Puis cliquer sur la carte pour placer le centre du cercle">⌖ Rayon : choisir un centre sur la carte</button>
+        <div class="segmented segmented-sm" id="radius-km" role="group" aria-label="Rayon en kilomètres"></div>
+        <div class="radius-result" id="radius-result" hidden>
+          <span class="filter-hint" id="radius-label"></span>
+          <div class="radius-count" id="radius-count" aria-live="polite"></div>
+          <label class="switch">
+            <input type="checkbox" id="radius-filter" checked>
+            <span class="switch-track" aria-hidden="true"></span>
+            <span class="switch-text">Ne garder que les sites dans le rayon</span>
+          </label>
+        </div>
+        <span class="filter-hint">Cercle autour d'un point de la carte ou d'un site (lien « Rayon » du popup). Distance à vol d'oiseau depuis le centroïde de commune ; le compteur respecte les autres filtres.</span>
       </div>
 
       <!-- Recherche -->
@@ -298,12 +321,12 @@
   <script src="vendor/chartjs/chart.umd.min.js"></script>
 
   <!-- App -->
-  <script src="js/config.js?v=20260926-1"></script>
-  <script src="js/filters.js?v=20260926-1"></script>
-  <script src="js/map.js?v=20260926-1"></script>
-  <script src="js/charts.js?v=20260926-1"></script>
-  <script src="js/table.js?v=20260926-1"></script>
-  <script src="js/fiche.js?v=20260926-1"></script>
-  <script src="js/app.js?v=20260926-1"></script>
+  <script src="js/config.js?v=20260926-2"></script>
+  <script src="js/filters.js?v=20260926-2"></script>
+  <script src="js/map.js?v=20260926-2"></script>
+  <script src="js/charts.js?v=20260926-2"></script>
+  <script src="js/table.js?v=20260926-2"></script>
+  <script src="js/fiche.js?v=20260926-2"></script>
+  <script src="js/app.js?v=20260926-2"></script>
 </body>
 </html>

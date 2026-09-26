@@ -125,7 +125,8 @@
     try { savedH = parseInt(localStorage.getItem('ntf-panel-h') || '', 10); } catch (e) { /* stockage indisponible */ }
     panel.style.height = (savedH >= 120 ? savedH : defaultH()) + 'px';
     // la carte vient de perdre la hauteur du panneau : on recadre sur la France
-    requestAnimationFrame(() => { MapView.invalidateSize(); MapView.fitFrance(); });
+    // (ou sur le rayon restauré depuis l'URL, s'il y en a un)
+    requestAnimationFrame(() => { MapView.invalidateSize(); if (!MapView.fitRadius()) MapView.fitFrance(); });
 
     function maxH() {
       return document.querySelector('.main-content').clientHeight - 160;
