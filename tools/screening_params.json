@@ -1,6 +1,6 @@
 {
-  "_comment": "Seuils du screening Cogen → Compute France. Lus par tools/build_datasets.py. Toute modification est documentée dans METHODOLOGIE.md.",
-  "version": "v0 (26/09/2026)",
+  "_comment": "Seuils du screening Nautilus Token Factories. Lus par tools/build_datasets.py. Toute modification est documentée dans METHODOLOGIE.md.",
+  "version": "v0.2 (26/09/2026)",
   "source": {
     "api": "https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets/",
     "dataset": "registre-national-installation-production-stockage-electricite-agrege",
@@ -8,26 +8,57 @@
     "communes": "https://geo.api.gouv.fr/communes?fields=nom,code,centre,codeDepartement&format=json"
   },
   "perimetre": {
-    "gestionnaires_exclus": ["RTE"],
-    "regions_exclues": ["Guadeloupe", "Martinique", "Guyane", "La Réunion", "Mayotte", "Corse"],
+    "gestionnaires_exclus": [
+      "RTE"
+    ],
+    "regions_exclues": [
+      "Guadeloupe",
+      "Martinique",
+      "Guyane",
+      "La Réunion",
+      "Mayotte",
+      "Corse"
+    ],
     "puissance_kw_min": 1000,
     "puissance_kw_max": 20000,
     "filtre_technologie": false
   },
   "cohortes": [
-    {"label": "avant 1995", "max": 1994},
-    {"label": "1995-2010", "min": 1995, "max": 2010},
-    {"label": "2011-2014", "min": 2011, "max": 2014},
-    {"label": "2015 et après", "min": 2015}
+    {
+      "label": "avant 1995",
+      "max": 1994
+    },
+    {
+      "label": "1995-2010",
+      "min": 1995,
+      "max": 2010
+    },
+    {
+      "label": "2011-2014",
+      "min": 2011,
+      "max": 2014
+    },
+    {
+      "label": "2015 et après",
+      "min": 2015
+    }
   ],
   "cohorte_cible": "1995-2010",
   "statut": {
     "heures_an": 8760,
     "dormante_max": 0.05,
     "faible_max": 0.15,
-    "labels": {"dormante": "Dormante (< 5 %)", "faible": "Faible (5-15 %)", "active": "Active (> 15 %)", "na": "Non renseigné"}
+    "labels": {
+      "dormante": "Dormante (< 5 %)",
+      "faible": "Faible (5-15 %)",
+      "active": "Active (> 15 %)",
+      "na": "Non renseigné"
+    }
   },
-  "fin_contrat": {"duree_ans": 12, "echeance_max_oa": 2031},
+  "fin_contrat": {
+    "duree_ans": 12,
+    "echeance_max_oa": 2031
+  },
   "usage_probable": {
     "Industrie / agro": "USINE|PAPET|CARTON|SUCRE|LAIT|FROMAG|CHIMIE|BRASSERIE|AGRO|INDUSTR|VERRE|TEXTILE|MALT|AMIDON|DISTILL|ARKEMA|LESAFFRE|COOPERL|SERUM|GRTGAZ|NORENERGY",
     "Hôpital / santé": "HOPITAL|HÔPITAL|\\bCH\\b|CHU|CHR|CLINIQUE|HOSPITAL|CENTRE HOSP|\\bCHI\\b",
@@ -35,6 +66,40 @@
     "Serres / agricole": "SERRE|MARAICH|HORTI|TOMATE|PEPINI|LEGUM|EARL|SCEA|GAEC",
     "Campus / piscine": "PISCINE|AQUAT|UNIVERS|CAMPUS|LYCEE|STADE"
   },
-  "tranches_puissance_mw": [[1, 3], [3, 6], [6, 12], [12, 20]],
-  "regions_prioritaires": ["Île-de-France", "Hauts-de-France", "Normandie"]
+  "tranches_puissance_mw": [
+    [
+      1,
+      3
+    ],
+    [
+      3,
+      6
+    ],
+    [
+      6,
+      12
+    ],
+    [
+      12,
+      20
+    ]
+  ],
+  "regions_prioritaires": [
+    "Île-de-France",
+    "Hauts-de-France",
+    "Normandie"
+  ],
+  "cible": {
+    "_comment": "Décision D2 : dormantes (toutes cohortes) + unités dont l'obligation d'achat s'éteint entre 2026 et 2031, actives comprises. Une unité de 1-20 MW mise en service au plus tard en 2019 relève d'un contrat de 12 ans (C01/C13) qui s'éteint au plus tard le 01/01/2031 ; au-delà de 2019, plus d'obligation d'achat possible (décret 2020-1079).",
+    "fenetre_min": 2026,
+    "fenetre_max": 2031,
+    "annee_mes_max_oa": 2019
+  },
+  "decisions": {
+    "D1": "Enedis et ELD, 1-20 MW (26/09/2026)",
+    "D2": "dormantes + unités sortant de contrat 2026-2031, actives comprises (26/09/2026)",
+    "D3": "dépôt public, projet nommé « Nautilus Token Factories » (26/09/2026)",
+    "D4": "sources payantes : validation préalable à chaque usage (26/09/2026)",
+    "D5": "régions prioritaires Île-de-France, Hauts-de-France, Normandie (26/09/2026)"
+  }
 }

@@ -14,7 +14,11 @@
       "dormantes": 126,
       "dormantes_mw": 607
     },
+    "cible_d2": {
+      "records": 612,
+      "mw": 2466
+    },
     "geo": "centroïde de commune (geo.api.gouv.fr, code INSEE)",
-    "params_version": "v0 (26/09/2026)"
+    "params_version": "v0.2 (26/09/2026)"
   }
 }

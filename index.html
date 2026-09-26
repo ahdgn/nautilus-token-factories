@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Screening des cogénérations au gaz naturel raccordées en HTA (1-20 MW) en fin de contrat d'obligation d'achat ou à l'arrêt : carte, filtres, tableau et fiches de site.">
+  <title>Nautilus Token Factories — Cogénérations gaz en fin de contrat</title>
+  <link rel="icon" type="image/png" href="assets/nautilus-icon.png">
+
+  <!-- Librairies vendorisées (pas de CDN, pas de fonte externe) -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
+  <link rel="stylesheet" href="css/style.css?v=20260926-1">
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-brand">
+      <button class="icon-btn" id="sidebar-toggle" aria-label="Afficher ou masquer les filtres"
+              aria-expanded="true" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <img src="assets/nautilus-logo.png" alt="Nautilus" class="brand-logo">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <h1>Nautilus Token Factories</h1>
+      <span class="header-badge">Cogénérations gaz HTA</span>
+    </div>
+    <div class="header-meta" id="header-meta"></div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <div class="app-layout">
+
+    <!-- SIDEBAR : filtres uniquement -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+    <aside class="sidebar" id="sidebar" aria-label="Filtres">
+      <div class="filters-head">
+        <h2 class="filters-title">Filtres</h2>
+        <button class="btn-reset" id="btn-reset" hidden>
+          Réinitialiser <span class="reset-count" id="reset-count"></span>
+        </button>
+      </div>
+
+      <!-- Cible D2 -->
+      <div class="filter-group prospection-group">
+        <div class="prospection-row">
+          <label class="switch">
+            <input type="checkbox" id="filter-cible" checked>
+            <span class="switch-track" aria-hidden="true"></span>
+            <span class="switch-text">Cible D2 seulement</span>
+          </label>
+          <button class="info-btn" id="cible-info-btn" aria-expanded="false"
+                  aria-controls="cible-info" aria-label="Définition de la cible D2">i</button>
+        </div>
+        <div class="info-pop" id="cible-info" hidden>
+          <strong>Décision D2 (26/09/2026)</strong>
+          <ul>
+            <li><b>Dormantes</b> : facteur de charge &lt; 5 %, toutes cohortes.</li>
+            <li><b>Sortie de l'obligation d'achat 2026-2031</b> : mise en service ≤ 2019 (contrat de 12 ans), actives comprises.</li>
+          </ul>
+          Champ <code>cible</code> du jeu de données ; seuils dans <code>tools/screening_params.json</code>.
+        </div>
+      </div>
+
+      <!-- Recherche -->
+      <div class="filter-group">
+        <label class="filter-label" for="filter-search">Recherche</label>
+        <div class="search-box">
+          <input type="search" id="filter-search" placeholder="Nom, commune ou poste source…" autocomplete="off">
+        </div>
+      </div>
+
+      <!-- Statut -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-statut">Statut (facteur de charge)</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="statut">tout</button>·<button class="link-btn" data-none="statut">aucun</button>
+          </span>
+        </div>
+        <div id="filter-statut" class="checkbox-group" role="group" aria-labelledby="label-statut"></div>
+        <span class="filter-hint">Énergie injectée sur 12 mois ÷ (puissance × 8 760 h). L'injection n'est pas la production : un site en autoconsommation paraît dormant.</span>
+      </div>
+
+      <!-- Fenêtre de sortie -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-fenetre">Fenêtre de sortie</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="fenetre">tout</button>·<button class="link-btn" data-none="fenetre">aucun</button>
+          </span>
+        </div>
+        <div id="filter-fenetre" class="checkbox-group" role="group" aria-labelledby="label-fenetre"></div>
+        <span class="filter-hint">Fin de contrat initial = année de MES + 12 ans (C97, C01, C13) ; indicatif, une rénovation a pu prolonger jusqu'au 01/01/2031.</span>
+      </div>
+
+      <!-- Cohorte -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-cohorte">Cohorte (mise en service)</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="cohorte">tout</button>·<button class="link-btn" data-none="cohorte">aucun</button>
+          </span>
+        </div>
+        <div id="filter-cohorte" class="checkbox-group" role="group" aria-labelledby="label-cohorte"></div>
+      </div>
+
+      <!-- Région -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-region">Région</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" id="regions-prio" title="Île-de-France, Hauts-de-France, Normandie (décision D5)">prioritaires</button>·<button class="link-btn" data-all="region">tout</button>·<button class="link-btn" data-none="region">aucun</button>
+          </span>
+        </div>
+        <div id="filter-region" class="checkbox-group" role="group" aria-labelledby="label-region"></div>
+      </div>
+
+      <!-- Usage probable -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-usage">Usage probable</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="usage">tout</button>·<button class="link-btn" data-none="usage">aucun</button>
+          </span>
+        </div>
+        <div id="filter-usage" class="checkbox-group" role="group" aria-labelledby="label-usage"></div>
+        <span class="filter-hint">Mots-clés du nom de l'installation ; « À qualifier » sinon. Indicatif.</span>
+      </div>
+
+      <!-- Tranche de puissance -->
+      <div class="filter-group">
+        <div class="filter-label-row">
+          <span class="filter-label" id="label-tranche">Puissance installée</span>
+          <span class="filter-label-actions">
+            <button class="link-btn" data-all="tranche">tout</button>·<button class="link-btn" data-none="tranche">aucun</button>
+          </span>
+        </div>
+        <div id="filter-tranche" class="checkbox-group" role="group" aria-labelledby="label-tranche"></div>
+      </div>
+
+      <!-- Gestionnaire -->
+      <div class="filter-group">
+        <label class="filter-label" for="filter-gestionnaire">Gestionnaire de réseau</label>
+        <select id="filter-gestionnaire">
+          <option value="">Tous les gestionnaires</option>
+        </select>
+      </div>
+
+      <!-- Nom masqué -->
+      <div class="filter-group">
+        <span class="filter-label" id="label-masque">Nom de l'installation</span>
+        <div class="segmented" id="filter-masque" role="group" aria-labelledby="label-masque">
+          <button class="seg-btn" data-masque="" aria-pressed="true">Tous</button>
+          <button class="seg-btn" data-masque="nommes" aria-pressed="false">Nommés</button>
+          <button class="seg-btn" data-masque="confidentiels" aria-pressed="false">Confidentiels</button>
+        </div>
+        <span class="filter-hint">225 noms sur 654 sont masqués « Confidentiel » au registre ; commune, poste source et puissance restent connus.</span>
+      </div>
+    </aside>
+
+    <!-- COLONNE PRINCIPALE -->
+    <main class="main-content">
+
+      <!-- Bandeau KPI -->
+      <section class="kpi-strip kpi-strip-5" id="kpi-strip" aria-label="Indicateurs clés"></section>
+
+      <!-- Carte -->
+      <div class="map-container">
+        <div id="map" aria-label="Carte des cogénérations"></div>
+        <div class="map-empty" id="map-empty" hidden>
+          <p>Aucun site ne correspond aux filtres.</p>
+          <button class="btn-secondary" id="map-empty-reset">Réinitialiser les filtres</button>
+        </div>
+      </div>
+
+      <!-- Panneau bas : redimensionnable -->
+      <section class="bottom-panel" id="bottom-panel" aria-label="Analyse et données">
+        <div class="panel-resizer" id="panel-resizer" role="separator" aria-orientation="horizontal"
+             aria-label="Redimensionner le panneau" title="Glisser pour redimensionner — double-clic pour réinitialiser"></div>
+        <div class="tab-bar">
+          <div role="tablist" aria-label="Vues du panneau">
+            <button class="tab-btn" id="tab-btn-analyse" role="tab" aria-selected="true"
+                    aria-controls="tab-analyse" data-tab="analyse">Analyse</button>
+            <button class="tab-btn" id="tab-btn-donnees" role="tab" aria-selected="false"
+                    aria-controls="tab-donnees" data-tab="donnees">Données</button>
+          </div>
+          <div class="panel-actions">
+            <button class="icon-btn" id="panel-maximize" aria-label="Agrandir ou réduire le panneau" title="Agrandir / réduire">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M7 14l5-5 5 5"
+                stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Onglet Analyse -->
+        <div class="tab-content" id="tab-analyse" role="tabpanel" aria-labelledby="tab-btn-analyse">
+          <div class="charts-grid">
+            <div class="chart-card chart-wide">
+              <div class="chart-head">
+                <h3>Cohorte de mise en service × statut</h3>
+                <div class="chart-controls">
+                  <div class="segmented segmented-sm" id="cohorte-metric" role="group" aria-label="Métrique">
+                    <button class="seg-btn" data-metric="sites" aria-pressed="true">Unités</button>
+                    <button class="seg-btn" data-metric="mw" aria-pressed="false">MW</button>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-body"><canvas id="chart-cohorte" aria-label="Graphique des unités et MW par cohorte et statut"></canvas></div>
+              <div class="chart-empty" hidden>Aucune donnée avec ces filtres</div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><h3>Puissance installée par région (MW)</h3></div>
+              <div class="chart-body"><canvas id="chart-regions" aria-label="Graphique de la puissance par région"></canvas></div>
+              <div class="chart-empty" hidden>Aucune donnée avec ces filtres</div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><h3>Unités par tranche de puissance</h3></div>
+              <div class="chart-body"><canvas id="chart-tranches" aria-label="Graphique des unités par tranche de puissance et statut"></canvas></div>
+              <div class="chart-empty" hidden>Aucune donnée avec ces filtres</div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><h3>Unités par usage probable</h3></div>
+              <div class="chart-body"><canvas id="chart-usages" aria-label="Graphique des unités par usage probable et statut"></canvas></div>
+              <div class="chart-empty" hidden>Aucune donnée avec ces filtres</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Onglet Données -->
+        <div class="tab-content" id="tab-donnees" role="tabpanel" aria-labelledby="tab-btn-donnees" hidden>
+          <div class="table-toolbar">
+            <span id="table-count" aria-live="polite"></span>
+            <div class="table-toolbar-right">
+              <label class="page-size-label" for="page-size">Lignes&nbsp;:</label>
+              <select id="page-size">
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              <button class="btn-primary" id="btn-export" title="Exporte le jeu de données filtré (CSV ; séparateur point-virgule, UTF-8 avec BOM)">Exporter CSV</button>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table id="data-table">
+              <thead>
+                <tr>
+                  <th scope="col" data-sort="nom">Nom</th>
+                  <th scope="col" data-sort="commune">Commune</th>
+                  <th scope="col" data-sort="code_departement">Dépt</th>
+                  <th scope="col" data-sort="region">Région</th>
+                  <th scope="col" data-sort="puissance_mw" class="col-num" title="Puissance installée (MW électriques)">MW</th>
+                  <th scope="col" data-sort="technologie">Technologie</th>
+                  <th scope="col" data-sort="annee_mes" class="col-num" title="Année de mise en service (date de raccordement)">MES</th>
+                  <th scope="col" data-sort="fin_contrat_initial" class="col-num" title="Fin du contrat initial = MES + 12 ans (indicatif)">Fin contrat</th>
+                  <th scope="col" data-sort="fenetreKey" title="Fenêtre de sortie de l'obligation d'achat">Fenêtre</th>
+                  <th scope="col" data-sort="facteur_charge_pct" class="col-num" title="Énergie injectée sur 12 mois ÷ (puissance × 8 760 h)">FC %</th>
+                  <th scope="col" data-sort="statutKey">Statut</th>
+                  <th scope="col" data-sort="usage_probable">Usage</th>
+                  <th scope="col" data-sort="poste_source">Poste source</th>
+                  <th scope="col" data-sort="gestionnaire">Gestionnaire</th>
+                </tr>
+              </thead>
+              <tbody id="table-body"></tbody>
+            </table>
+            <div class="table-empty" id="table-empty" hidden>Aucun site ne correspond aux filtres.</div>
+          </div>
+          <div class="table-footer">
+            <span id="table-range"></span>
+            <nav class="pagination" id="pagination" aria-label="Pagination du tableau"></nav>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- PANNEAU FICHE DU SITE (lecture seule ; la qualification arrive à l'étape 8) -->
+  <aside class="qualify-drawer fiche-drawer" id="fiche-drawer" hidden aria-label="Fiche du site">
+    <div class="qualify-head">
+      <h2 id="fiche-title">Fiche du site</h2>
+      <button class="icon-btn" id="fiche-close" aria-label="Fermer la fiche du site">✕</button>
+    </div>
+    <div class="qualify-site fiche-body" id="fiche-body"></div>
+    <p class="qualify-hint">Position au centroïde de la commune (geo.api.gouv.fr), pas du site. Données du registre ODRÉ, aucun champ inventé.</p>
+  </aside>
+
+  <!-- FOOTER -->
+  <footer class="app-footer" id="app-footer">
+    <span id="footer-source"></span>
+    <span id="footer-rights"></span>
+  </footer>
+
+  <!-- Librairies -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/leaflet/leaflet.markercluster.js"></script>
+  <script src="vendor/chartjs/chart.umd.min.js"></script>
+
+  <!-- App -->
+  <script src="js/config.js?v=20260926-1"></script>
+  <script src="js/filters.js?v=20260926-1"></script>
+  <script src="js/map.js?v=20260926-1"></script>
+  <script src="js/charts.js?v=20260926-1"></script>
+  <script src="js/table.js?v=20260926-1"></script>
+  <script src="js/fiche.js?v=20260926-1"></script>
+  <script src="js/app.js?v=20260926-1"></script>
+</body>
+</html>
