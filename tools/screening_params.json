@@ -89,6 +89,13 @@
     "Hauts-de-France",
     "Normandie"
   ],
+  "rayon_km_defaut": 25,
+  "rayons_km": [
+    5,
+    10,
+    25,
+    50
+  ],
   "cible": {
     "_comment": "Décision D2 : dormantes (toutes cohortes) + unités dont l'obligation d'achat s'éteint entre 2026 et 2031, actives comprises. Une unité de 1-20 MW mise en service au plus tard en 2019 relève d'un contrat de 12 ans (C01/C13) qui s'éteint au plus tard le 01/01/2031 ; au-delà de 2019, plus d'obligation d'achat possible (décret 2020-1079).",
     "fenetre_min": 2026,

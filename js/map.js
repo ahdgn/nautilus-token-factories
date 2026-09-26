@@ -20,6 +20,12 @@ const MapView = (() => {
   const markers = new Map(); // id -> marker
   const dataById = new Map(); // id -> site
   let lastData = [];
+  let radiusCircle = null;   // cercle de l'outil de rayon (étape 3)
+  let picking = false;       // mode pointage : le prochain clic place le centre
+  let pickControlLink = null;
+  let regionsLayer = null;   // contours des régions (chargés à la demande)
+  let regionsOn = false;
+  const REGIONS_URL = 'tools/geo/regions.geo.json';
 
   function init() {
     map = L.map('map', {
@@ -66,6 +72,31 @@ const MapView = (() => {
     };
     recenter.addTo(map);
 
+    // Bouton « Rayon » : mode pointage, le clic suivant sur la carte place le centre
+    const pick = L.control({ position: 'topleft' });
+    pick.onAdd = () => {
+      const div = L.DomUtil.create('div', 'leaflet-bar');
+      pickControlLink = L.DomUtil.create('a', 'map-pick-btn', div);
+      pickControlLink.href = '#';
+      pickControlLink.title = 'Rayon : cliquer puis placer le centre sur la carte';
+      pickControlLink.setAttribute('aria-label', 'Outil de rayon');
+      pickControlLink.setAttribute('role', 'button');
+      pickControlLink.innerHTML = '⌖';
+      L.DomEvent.on(pickControlLink, 'click', (e) => {
+        L.DomEvent.preventDefault(e);
+        L.DomEvent.stopPropagation(e);
+        setPickMode(!picking);
+      });
+      return div;
+    };
+    pick.addTo(map);
+    map.on('click', (e) => {
+      if (!picking) return;
+      setPickMode(false);
+      Filters.setRadiusCenter(e.latlng.lat, e.latlng.lng, '');
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && picking) setPickMode(false); });
+
     clusterGroup = L.markerClusterGroup({
       maxClusterRadius: 40,
       // au-delà du zoom 9, chaque cogénération est visible avec sa taille
@@ -88,7 +119,7 @@ const MapView = (() => {
 
     addLegend();
 
-    // Liens des popups : « Fiche » -> panneau fiche du site
+    // Liens des popups : « Fiche » -> panneau fiche du site ; « Rayon » -> cercle centré sur le site
     map.on('popupopen', (e) => {
       const el = e.popup.getElement();
       const fi = el.querySelector('a[data-fiche-id]');
@@ -96,6 +127,13 @@ const MapView = (() => {
         ev.preventDefault();
         const d = dataById.get(fi.dataset.ficheId);
         if (d) Fiche.open(d);
+        map.closePopup();
+      });
+      const ra = el.querySelector('a[data-radius-id]');
+      if (ra) ra.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const d = dataById.get(ra.dataset.radiusId);
+        if (d && d.lat != null) Filters.setRadiusCenter(d.lat, d.lon, `${d.nom} (${d.commune})`);
         map.closePopup();
       });
     });
@@ -106,6 +144,67 @@ const MapView = (() => {
 
   function fitFrance() {
     if (map) map.fitBounds(FRANCE_BOUNDS, { padding: [10, 10] });
+  }
+
+  /* ---- Outil de rayon (repris du patron biométhane) ----
+     Cercle en double trait (halo blanc + pointillés teal), lisible sur fond
+     clair comme sur imagerie satellite ; dessiné / retiré par Filters. */
+  function showRadius(lat, lon, km) {
+    hideRadius();
+    const casing = L.circle([lat, lon], {
+      radius: km * 1000, color: '#FFFFFF', weight: 5, opacity: 0.85,
+      fill: false, interactive: false,
+    });
+    const dash = L.circle([lat, lon], {
+      radius: km * 1000, color: PALETTE.teal, weight: 2.25,
+      dashArray: '8 8', fillColor: PALETTE.teal, fillOpacity: 0.05,
+      interactive: false,
+    });
+    const centre = L.circleMarker([lat, lon], {
+      radius: 4, color: '#FFFFFF', weight: 1.5, fillColor: PALETTE.teal, fillOpacity: 1, interactive: false,
+    });
+    radiusCircle = L.layerGroup([casing, dash, centre]).addTo(map);
+    fitRadius();
+  }
+  function hideRadius() {
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+  }
+  // Cadre la vue sur le cercle ; renvoie false s'il n'y en a pas
+  function fitRadius() {
+    if (!radiusCircle) return false;
+    const dash = radiusCircle.getLayers()[1];
+    map.fitBounds(dash.getBounds(), { padding: [24, 24] });
+    return true;
+  }
+
+  function setPickMode(on) {
+    picking = !!on;
+    map.getContainer().classList.toggle('map-picking', picking);
+    if (pickControlLink) pickControlLink.classList.toggle('active', picking);
+    const btn = document.getElementById('radius-pick');
+    if (btn) {
+      btn.setAttribute('aria-pressed', String(picking));
+      btn.textContent = picking ? '⌖ Cliquez sur la carte pour placer le centre (Échap pour annuler)'
+                                : '⌖ Rayon : choisir un centre sur la carte';
+    }
+    if (picking) map.closePopup();
+  }
+  const isPicking = () => picking;
+
+  /* ---- Contours des régions : trait fin gris, chargé au premier affichage ---- */
+  function setRegions(on) {
+    regionsOn = !!on;
+    if (!regionsOn) { if (regionsLayer) map.removeLayer(regionsLayer); return; }
+    if (regionsLayer) { regionsLayer.addTo(map); return; }
+    fetch(REGIONS_URL).then(r => { if (!r.ok) throw new Error(`${REGIONS_URL} : HTTP ${r.status}`); return r.json(); })
+      .then(gj => {
+        regionsLayer = L.geoJSON(gj, {
+          style: { color: PALETTE.grey, weight: 1, opacity: 0.8, fill: false },
+          interactive: false,
+        });
+        if (regionsOn) regionsLayer.addTo(map);
+      })
+      .catch(err => { console.warn('Contours des régions indisponibles', err); regionsOn = false; updateLegend(lastData); });
   }
 
   /* Rayon proportionnel à la racine de la puissance : 1 MW → 5 px, 20 MW → 13 px */
@@ -138,6 +237,7 @@ const MapView = (() => {
   function actionBar(d) {
     const a = [];
     a.push(`<a class="act" href="#" data-fiche-id="${escapeHtml(d.id)}" title="Fiche complète du site"><span class="act-ico">☰</span>Fiche</a>`);
+    if (d.lat != null) a.push(`<a class="act" href="#" data-radius-id="${escapeHtml(d.id)}" title="Tracer un rayon autour de ce site"><span class="act-ico">⌖</span>Rayon</a>`);
     const gm = CONFIG.gmapsUrl(d.lat, d.lon);
     if (gm) a.push(`<a class="act" href="${gm}" target="_blank" rel="noopener noreferrer" title="Google Maps au centroïde de la commune (pas le site)"><span class="act-ico">◎</span>Maps</a>`);
     if (d.code_eic) a.push(`<a class="act" href="${escapeHtml(CONFIG.odreUrl(d.code_eic))}" target="_blank" rel="noopener noreferrer" title="Enregistrement au registre ODRÉ (code EIC)"><span class="act-ico">⚙</span>ODRÉ</a>`);
@@ -308,6 +408,7 @@ const MapView = (() => {
         </div>`).join('')}
       <div class="legend-note">Taille du point ∝ puissance (MW) · position au centroïde de la commune</div>
       <label class="legend-toggle"><input type="checkbox" id="legend-cluster" ${clustered ? 'checked' : ''}> Regrouper les marqueurs</label>
+      <label class="legend-toggle"><input type="checkbox" id="legend-regions" ${regionsOn ? 'checked' : ''}> Contours des régions</label>
       </div>`;
 
     legendDiv.querySelector('.map-legend-toggle').addEventListener('click', () => {
@@ -316,6 +417,7 @@ const MapView = (() => {
       legendDiv.querySelector('.map-legend-toggle').setAttribute('aria-expanded', String(!legendCollapsed));
     });
     legendDiv.querySelector('#legend-cluster').addEventListener('change', (e) => setClustered(e.target.checked));
+    legendDiv.querySelector('#legend-regions').addEventListener('change', (e) => setRegions(e.target.checked));
 
     legendDiv.querySelectorAll('.legend-item').forEach(el => {
       const toggle = () => Filters.toggleValue('statut', el.dataset.statut);
@@ -330,5 +432,6 @@ const MapView = (() => {
     if (map) map.invalidateSize();
   }
 
-  return { init, update, focusOn, invalidateSize, fitFrance, popupHtml, detailHtml, setClustered };
+  return { init, update, focusOn, invalidateSize, fitFrance, popupHtml, detailHtml, setClustered,
+           showRadius, hideRadius, fitRadius, setPickMode, isPicking, setRegions };
 })();
