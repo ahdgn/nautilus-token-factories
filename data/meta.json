@@ -1,0 +1,20 @@
+{
+  "_comment": "Millésimes écrits par tools/build_datasets.py.",
+  "build_date": "2026-09-26",
+  "cogenerations_gaz": {
+    "source": "Registre national des installations de production et de stockage d'électricité (au 31/07/2026)",
+    "dataset": "registre-national-installation-production-stockage-electricite-agrege",
+    "edition": "2026-07-31",
+    "data_processed": "2026-09-10",
+    "records": 654,
+    "cohorte_cible": {
+      "label": "1995-2010",
+      "records": 212,
+      "mw": 962,
+      "dormantes": 126,
+      "dormantes_mw": 607
+    },
+    "geo": "centroïde de commune (geo.api.gouv.fr, code INSEE)",
+    "params_version": "v0 (26/09/2026)"
+  }
+}

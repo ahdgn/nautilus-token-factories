@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+tools/cache/
+*.xlsx
+*.docx
+*.pdf
+.DS_Store
+Thumbs.db
+.claude/
