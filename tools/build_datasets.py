@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ETL Cogen → Compute France : registre national ODRÉ → data/cogenerations_gaz.json + data/meta.json.
+"""ETL Nautilus Token Factories : registre national ODRÉ → data/cogenerations_gaz.json + data/meta.json.
 
 Périmètre (tools/screening_params.json) : filière « Thermique non renouvelable », combustible gaz,
 gestionnaire hors RTE, 1 000 à 20 000 kW, SANS filtre sur la technologie (les cogénérations
@@ -22,7 +22,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DATA = REPO / "data"
 PARAMS = json.load(open(REPO / "tools" / "screening_params.json", encoding="utf-8"))
-UA = {"User-Agent": "cogen-compute-france-etl (Nautilus)"}
+UA = {"User-Agent": "nautilus-token-factories-etl"}
 
 
 def fetch_json(url, timeout=300):
@@ -100,6 +100,19 @@ def usage_probable(name):
     return "À qualifier"
 
 
+def fenetre_sortie(year):
+    """Fenêtre de sortie de l'obligation d'achat (décision D2)."""
+    if year is None:
+        return None
+    c = PARAMS["cible"]
+    fin = year + PARAMS["fin_contrat"]["duree_ans"]
+    if year > c["annee_mes_max_oa"]:
+        return "hors obligation d'achat (MES ≥ %d)" % (c["annee_mes_max_oa"] + 1)
+    if fin < c["fenetre_min"]:
+        return "contrat initial échu (≤ %d), sortie au plus tard %d si rénové" % (c["fenetre_min"] - 1, c["fenetre_max"])
+    return "%d-%d" % (c["fenetre_min"], c["fenetre_max"])
+
+
 def main():
     src = PARAMS["source"]
     api, ds = src["api"], src["dataset"]
@@ -170,6 +183,8 @@ def main():
             "energie_injectee_mwh": round(e / 1000, 1) if e is not None else None,
             "facteur_charge": round(fc, 4) if fc is not None else None,
             "statut": statut(fc),
+            "fenetre_sortie": fenetre_sortie(year),
+            "cible": (statut(fc) == PARAMS["statut"]["labels"]["dormante"]) or (year is not None and year <= PARAMS["cible"]["annee_mes_max_oa"]),
             "usage_probable": usage_probable(r.get("nominstallation")),
             "regime": r.get("regime") or "",
             "lat": round(lat, 4) if lat is not None else None,
@@ -186,6 +201,11 @@ def main():
     mw = lambda L: round(sum(d["puissance_kw"] for d in L) / 1000)
     print(f"Périmètre : {len(kept)} installations, {mw(kept)} MW (écartées : {dropped}) ; non géocodées : {len(unmatched)}")
     print(f"Cohorte {PARAMS['cohorte_cible']} : {len(cible)} / {mw(cible)} MW ; dormantes : {len(dorm)} / {mw(dorm)} MW")
+    cib = [d for d in kept if d["cible"]]
+    dorm_all = [d for d in kept if d["statut"] == PARAMS["statut"]["labels"]["dormante"]]
+    print(f"Cible D2 : {len(cib)} / {mw(cib)} MW (dormantes toutes cohortes : {len(dorm_all)} / {mw(dorm_all)} MW ; actives ou faibles MES <= {PARAMS['cible']['annee_mes_max_oa']} : {len(cib) - len(dorm_all)})")
+    import collections
+    print("Fenêtres :", dict(collections.Counter(d["fenetre_sortie"] for d in kept)))
     for u in unmatched[:10]:
         print("   non géocodée :", u)
 
@@ -198,6 +218,7 @@ def main():
                               "data_processed": meta["data_processed"], "records": len(kept),
                               "cohorte_cible": {"label": PARAMS["cohorte_cible"], "records": len(cible), "mw": mw(cible),
                                                 "dormantes": len(dorm), "dormantes_mw": mw(dorm)},
+                              "cible_d2": {"records": len(cib), "mw": mw(cib)},
                               "geo": "centroïde de commune (geo.api.gouv.fr, code INSEE)", "params_version": PARAMS["version"]},
     }
     json.dump(out_meta, open(DATA / "meta.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)

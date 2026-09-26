@@ -1,23 +1,23 @@
-# Backlog — Cogen → Compute France
+# Backlog — Nautilus Token Factories
 
 Une PR par étape, du plus simple au plus incertain. Chaque PR indique le degré d'assurance,
 la méthode de vérification et les chiffres avant/après. `main` est toujours livrable.
 
-## Décisions en attente (à arbitrer avant l'étape 2)
+## Décisions (arbitrées le 26/09/2026)
 
-| # | Question | Options | Décision |
-|---|---|---|---|
-| D1 | Périmètre réseau | Enedis et ELD 1-20 MW seulement, ou aussi les unités RTE de 12 à 50 MW (HTB) | — |
-| D2 | Cibles | Seulement les dormantes, ou toutes les unités sortant de contrat 2026-2031 (actives comprises) | — |
-| D3 | Forme | Application carte statique publique (GitHub Pages, dépôt public) ou dépôt privé + classeur Excel | — |
-| D4 | Sources payantes | Budget Pappers (exploitant, comptes) : nombre d'appels et coût | — |
-| D5 | Priorité régionale | Île-de-France, Hauts-de-France, Normandie en premier pour la qualification manuelle Enedis | — |
+| # | Question | Décision |
+|---|---|---|
+| D1 | Périmètre réseau | Enedis et ELD, 1-20 MW pour le moment ; RTE hors périmètre |
+| D2 | Cibles | Dormantes + unités sortant de contrat 2026-2031, actives comprises (champ `cible`) |
+| D3 | Forme | Dépôt public, application carte statique (GitHub Pages) ; projet nommé « Nautilus Token Factories », sans référence à un partenaire |
+| D4 | Sources payantes | Validation préalable avant chaque usage (nombre d'appels, coût) |
+| D5 | Priorité régionale | Île-de-France, Hauts-de-France, Normandie |
 
 ## Étapes
 
 - [x] **0. Dépôt et socle** (26/09/2026) : README, backlog, méthodologie v0, paramètres, notes de recherche A/B/C.
 - [x] **1. Registre ODRÉ** (26/09/2026) : `tools/build_datasets.py`, filtre gaz sans technologie, géocodage au centroïde de commune, cohorte, facteur de charge, statut, usage probable, fin de contrat initial ; `data/cogenerations_gaz.json`. Assurance : élevée sur les comptages, moyenne sur le statut (énergie injectée ≠ production).
-- [ ] **2. Carte et tableau** : application Leaflet statique reprise de `ahdgn/biomethane-france` (config, filtres, KPI, tableau, export CSV), marqueurs proportionnels à la puissance, filtres cohorte / statut / région / usage. Dépend de D3.
+- [ ] **2. Carte et tableau** (en cours, branche `feat/etape-2-carte`) : application Leaflet statique reprise de `ahdgn/biomethane-france` (config, filtres, KPI, tableau, export CSV), marqueurs proportionnels à la puissance, filtres cible / statut / fenêtre de sortie / cohorte / région / usage / puissance.
 - [ ] **3. Contrôle géométrique et satellite** : contours régionaux, vue satellite, rayon.
 - [ ] **4. Géorisques** : appariement par code INSEE avec les établissements ICPE (rubrique 2910, puissance thermique, SIRET, coordonnées réelles). Limite connue : établissements A/E seulement.
 - [ ] **5. Réseaux de chaleur** : France Chaleur Urbaine (tracés, gestionnaire, mix) par commune ; indicateur « réseau de chaleur dans la commune ».

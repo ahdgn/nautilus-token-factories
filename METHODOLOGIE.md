@@ -1,4 +1,4 @@
-# Méthodologie — v0 (26/09/2026)
+# Méthodologie — v0.2 (26/09/2026)
 
 Ce document explique la logique du screening et les choix de design. Il est mis à jour
 dans la même PR que toute règle modifiée. Les seuils sont dans `tools/screening_params.json`.
@@ -34,6 +34,8 @@ d'inférence de 1 à 10 MW ?
 | `facteur_charge` | `energieannuelleglissanteinjectee` / (`puismaxinstallee` × 8 760) | Moyenne : injection ≠ production |
 | `statut` | Dormante si facteur de charge < 5 % ; faible de 5 à 15 % ; active au-delà ; non renseigné si l'énergie est absente. Une cogénération sous contrat C13 tourne du 1er novembre au 1er avril, soit 30 à 50 % attendus | Moyenne |
 | `fin_contrat_initial` | `annee_mes` + 12 (durée des contrats C97, C01, C13). Une rénovation sous C13 a pu prolonger le soutien jusqu'au 1er janvier 2031 au plus tard | Faible : indicatif |
+| `fenetre_sortie` | « 2026-2031 » si `annee_mes` + 12 est dans la fenêtre ; « contrat initial échu (≤ 2025), sortie au plus tard 2031 si rénové » si `annee_mes` + 12 < 2026 ; « hors obligation d'achat (MES ≥ 2020) » au-delà de 2019, le décret 2020-1079 ayant fermé tout nouveau soutien | Moyenne |
+| `cible` | Décision D2 : vrai si `statut` = dormante, ou si `annee_mes` ≤ 2019 (tout contrat d'achat de 12 ans encore en cours s'éteint avant le 01/01/2031, RTE). 612 unités sur 654 : le filtre est large par construction, ce sont les filtres de l'application et le score v1 qui hiérarchisent | Moyenne |
 | `usage_probable` | Mots-clés du nom (industrie, hôpital, réseau de chaleur, serres, campus) ; « À qualifier » sinon | Faible : indicatif |
 | `lat`, `lon` | Centroïde de la commune d'implantation (geo.api.gouv.fr) par code INSEE, sinon par nom et département | Commune |
 
